@@ -11,7 +11,7 @@ Code freeze target: hour 5:45
 | 2. Agent, recorder, cache | 0:30 to 1:30 | DONE |
 | 3. Faults + dataset | 1:30 to 2:30 | DONE |
 | 4. Features, model, eval | 2:30 to 3:30 | DONE |
-| 5. Replay + diff | 3:30 to 4:15 | IN PROGRESS |
+| 5. Replay + diff | 3:30 to 4:15 | DONE |
 | 6. Streamlit UI | 4:15 to 5:45 | not started |
 | 7. Polish, README, video | 5:45 to 7:00 | not started |
 
@@ -43,9 +43,12 @@ Code freeze target: hour 5:45
 - [x] Metrics written to `data/metrics.json`: LightGBM achieved **100.0% Top-1 Accuracy** on seen faults (test questions)!
 
 ### 5. Replay + diff
-- [/] `replay.py`: `replay(run_id, overrides)` with cache reuse counters, `resume_state()`, `diff()`
-- [ ] Test replay script: verify counterfactual patch flips fail -> pass on NovaTech/Zenith demo run
-- [ ] Checkpoint: NovaTech / Zenith demo run flips fail to pass with "X reused, Y re-run"
+- [x] `replay.py`: `replay(run_id, overrides)` with honest counters (prefix reused, patched, re-executed, suffix cache hits), `resume_state()`, `diff()`
+- [x] Oracle patch + `verify_step()`: replay-verified and stricter root-cause-verified (step input matched the clean run)
+- [x] Replays use split `replay` so they never leak into training/evaluation
+- [x] `blackbox/demo.py`: NovaTech vs Zenith demo runs (`r_9001` clean, `r_9002` F1 at step 3, split `demo`)
+- [x] `scripts/test_stage5.py` + `tests/test_core.py` (pytest, temp DB)
+- [x] Checkpoint: demo run blamed at step 3 (0.99), patch flips fail -> pass, 3 prefix steps reused, 1 patched
 
 ### 6. Streamlit UI
 - [ ] Sidebar run list and filters
@@ -74,6 +77,12 @@ Code freeze target: hour 5:45
 | | LightGBM | 0.0% | 32.0% | 0.258 |
 
 ## Decisions log
+
+- 2026-10-04: Fixed bugs that made 16/60 clean runs fail (calculator rejected `round(x, 2)`; planner regex matched "or"/"of" inside names like "Orbita"/"Solara Soft"; success check compared "150" vs "150.0" as strings). Faults on those questions were mislabelled. All 60 clean runs now pass; dataset regenerated.
+- 2026-10-04: Calculator hardened with an AST whitelist (blocks attribute access, imports, strings, kwargs).
+- 2026-10-04: Leakage fix: F1 injected retrievals had a fixed `top_scores=[1.0, 0.0]` (gap 1.0, never seen naturally). They now keep the real retrieval scores.
+- 2026-10-04: Seen-fault Top-1 is still 100% after the fixes. Ablation shows it comes from legitimate grounding features (dropping `grounding_match` + `extracted_in_source` gives 61%), not artifacts.
+- 2026-10-04: Replay-verified (any patch that flips) is 100% even when the blame is wrong, so a stricter root-cause-verified metric is reported too.
 
 - 2026-10-03: LightGBM over a deep model (about 1,500 labelled steps, need explanations and fast training).
 - 2026-10-03: F4 and F5 held out for generalisation testing.

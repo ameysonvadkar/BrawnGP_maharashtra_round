@@ -18,6 +18,7 @@ import numpy as np
 from blackbox.model import predict, load_model
 from blackbox.recorder import list_runs, get_steps, get_run
 from blackbox.features import extract_features_for_run
+from blackbox.replay import verify_step
 
 METRICS_PATH = Path("data/metrics.json")
 
@@ -53,7 +54,9 @@ def _eval_split(runs: list[dict], split_name: str) -> dict[str, Any]:
     print(f"\n--- Evaluating {split_name} ({len(runs)} failed runs) ---")
 
     methods = ["random", "last_step", "first_anomaly", "lightgbm"]
+    rng = random.Random(0)  # seeded so the random baseline is reproducible
     split_metrics = {}
+    lgbm_top1: dict[str, int] = {}
 
     for method in methods:
         top1_hits = 0
@@ -71,7 +74,7 @@ def _eval_split(runs: list[dict], split_name: str) -> dict[str, Any]:
 
             if method == "random":
                 ranked_indices = list(range(n_steps))
-                random.shuffle(ranked_indices)
+                rng.shuffle(ranked_indices)
             elif method == "last_step":
                 # Rank steps from last to first
                 ranked_indices = list(range(n_steps - 1, -1, -1))
@@ -83,6 +86,7 @@ def _eval_split(runs: list[dict], split_name: str) -> dict[str, Any]:
                 # Sort step indices by score descending
                 sorted_preds = sorted(preds, key=lambda p: p["score"], reverse=True)
                 ranked_indices = [p["step_idx"] for p in sorted_preds]
+                lgbm_top1[run_id] = ranked_indices[0]
 
             # Top-1
             if ranked_indices and ranked_indices[0] == true_fault:
@@ -110,10 +114,46 @@ def _eval_split(runs: list[dict], split_name: str) -> dict[str, Any]:
 
         print(f"[{method:15s}] Top-1: {top1_acc*100:5.1f}% | Top-3: {top3_acc*100:5.1f}% | MRR: {mrr:.3f}")
 
+    replay_verified = _eval_replay(runs, lgbm_top1)
+
     return {
         "n_runs": len(runs),
         "metrics": split_metrics,
+        "replay_verified": replay_verified,
     }
+
+
+def _eval_replay(runs: list[dict], lgbm_top1: dict[str, int]) -> dict[str, Any]:
+    """Patch steps with their clean (oracle) output and replay; count fail -> pass flips.
+
+    - lightgbm_top1: patch the step LightGBM blames most. Downstream steps can
+      also flip when patched, so read this next to exact-match Top-1.
+    - lightgbm_top1_root_cause: as above, and the blamed step received the same
+      input as in the clean run, so the error originated at that step.
+    - label_confirmed: patch the injected fault step (sanity check of the labels).
+    """
+    n = len(runs)
+    top1_flips = 0
+    top1_root = 0
+    label_flips = 0
+    for r in runs:
+        run_id = r["run_id"]
+        if run_id in lgbm_top1:
+            res = verify_step(run_id, lgbm_top1[run_id], new_run_id=f"rv_{run_id}_top1")
+            top1_flips += int(res["verified"])
+            top1_root += int(res["root_cause_verified"])
+        res = verify_step(run_id, r["fault_step"], new_run_id=f"rv_{run_id}_label")
+        label_flips += int(res["verified"])
+
+    out = {
+        "lightgbm_top1": round(top1_flips / float(n), 4),
+        "lightgbm_top1_root_cause": round(top1_root / float(n), 4),
+        "label_confirmed": round(label_flips / float(n), 4),
+    }
+    print(f"[replay-verified] LightGBM top-1 patch flips fail->pass: {out['lightgbm_top1']*100:5.1f}% "
+          f"| root-cause verified: {out['lightgbm_top1_root_cause']*100:5.1f}% "
+          f"| oracle patch at labelled fault step: {out['label_confirmed']*100:5.1f}%")
+    return out
 
 
 def _rank_first_anomaly(run_id: str, steps: list[dict]) -> list[int]:

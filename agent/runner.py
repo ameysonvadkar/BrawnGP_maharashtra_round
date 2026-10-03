@@ -232,5 +232,6 @@ def _check_success(final_answer: str | None, gold: str) -> bool:
     gold_nums = re.findall(r'[\d]+(?:\.\d+)?', gold)
     ans_nums = re.findall(r'[\d]+(?:\.\d+)?', final_answer)
     if gold_nums and ans_nums:
-        return gold_nums[0] == ans_nums[0]
+        # Compare numerically so "150" matches "150.0"
+        return abs(float(gold_nums[0]) - float(ans_nums[0])) < 0.005
     return gold.lower() in final_answer.lower() or final_answer.lower() in gold.lower()

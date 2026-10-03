@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import pickle
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,10 @@ def predict(run_id: str) -> list[dict[str, Any]]:
 
     # SHAP explanations
     explainer = shap.TreeExplainer(model)
-    shap_vals = explainer.shap_values(X_run)
+    with warnings.catch_warnings():
+        # shap warns that LightGBM binary output format changed; handled below
+        warnings.simplefilter("ignore", UserWarning)
+        shap_vals = explainer.shap_values(X_run)
     # Handle single or multi-output shap_values format
     if isinstance(shap_vals, list):
         shap_matrix = shap_vals[1]

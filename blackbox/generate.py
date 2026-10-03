@@ -69,6 +69,10 @@ def generate_dataset(num_questions: int = 60) -> dict[str, int]:
         clean_steps = get_steps(clean_run_id)
         if not clean_steps:
             continue
+        # A fault label is only meaningful if the clean run succeeds
+        if not clean_res["success"]:
+            print(f"WARNING: clean run {clean_run_id} ({qid}) failed; skipping faulty runs")
+            continue
 
         # 2. Four Faulty Runs per question
         fault_specs = []

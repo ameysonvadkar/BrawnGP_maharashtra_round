@@ -221,6 +221,13 @@ def list_runs(split: str | None = None, success: int | None = None) -> list[dict
     return [dict(r) for r in rows]
 
 
+def delete_run(run_id: str) -> None:
+    """Remove a run and its steps (used before re-recording a replay with a fixed ID)."""
+    with _get_conn() as conn:
+        conn.execute("DELETE FROM steps WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+
+
 def cache_stats(run_id: str) -> dict[str, int]:
     """Return count of reused (cache hit) and re-executed steps for a run."""
     with _get_conn() as conn:

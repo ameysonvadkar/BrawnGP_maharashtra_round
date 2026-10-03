@@ -56,14 +56,16 @@ def _inject_f1_wrong_retrieval(clean_output: dict, kb: list[dict]) -> dict:
         return clean_output
     doc_id = clean_output.get("doc_id", "")
     distractor_id = get_distractor(doc_id)
-    if distractor_id:
-        return retrieve_by_id(distractor_id)
-    # Fallback distractor if no exact pair: pick a random different doc
-    other = [c for c in kb if c["id"] != doc_id]
-    if other:
-        c = random.choice(other)
-        return retrieve_by_id(c["id"])
-    return clean_output
+    if not distractor_id:
+        # Fallback distractor if no exact pair: pick a random different doc
+        other = [c for c in kb if c["id"] != doc_id]
+        if not other:
+            return clean_output
+        distractor_id = random.choice(other)["id"]
+    faulty = retrieve_by_id(distractor_id)
+    # Keep the real retrieval scores: retrieve_by_id's fixed [1.0, 0.0] would leak the label
+    faulty["top_scores"] = clean_output.get("top_scores", faulty["top_scores"])
+    return faulty
 
 
 def _inject_f2_bad_tool_arg(clean_output: dict, state_before: dict) -> dict:

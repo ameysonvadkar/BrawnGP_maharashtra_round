@@ -6,6 +6,7 @@ the recorder.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import pathlib
@@ -161,14 +162,37 @@ def calculate(input_data: dict) -> dict:
             allowed_names[k] = v
         elif isinstance(v, str):
             allowed_names[k] = _coerce_num(v)
-    if not re.match(r'^[\w\s\+\-\*/\.\(\)]+$', expr):
-        raise ValueError(f"Unsafe expression: {expr}")
+    _check_safe_expr(expr, allowed_names)
     result = eval(expr, {"__builtins__": SAFE_BUILTINS}, allowed_names)  # noqa: S307
     if isinstance(result, float) and result.is_integer():
         result = int(result)
     elif isinstance(result, float):
         result = round(result, 2)
     return {"result": result, "expr": expr}
+
+
+_ALLOWED_NODES = (
+    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Name, ast.Load, ast.Call,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow, ast.USub, ast.UAdd,
+)
+
+
+def _check_safe_expr(expr: str, names: dict) -> None:
+    """Allow only arithmetic over numbers, state keys and SAFE_BUILTINS calls."""
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"Unsafe expression: {expr}") from exc
+    for node in ast.walk(tree):
+        if not isinstance(node, _ALLOWED_NODES):
+            raise ValueError(f"Unsafe expression: {expr}")
+        if isinstance(node, ast.Constant) and not isinstance(node.value, (int, float)):
+            raise ValueError(f"Unsafe expression: {expr}")
+        if isinstance(node, ast.Call):
+            if not (isinstance(node.func, ast.Name) and node.func.id in SAFE_BUILTINS) or node.keywords:
+                raise ValueError(f"Unsafe expression: {expr}")
+        if isinstance(node, ast.Name) and node.id not in names and node.id not in SAFE_BUILTINS:
+            raise ValueError(f"Unknown name in expression: {node.id}")
 
 
 def _coerce_num(v: Any) -> float | int:
@@ -275,9 +299,9 @@ def plan(input_data: dict) -> dict:
     q_lower = q.lower()
     
     if "older" in q_lower:
-        m = re.search(r"older,\s*(.*?)\s*or\s*(.*?),\s*and", q, re.IGNORECASE)
+        m = re.search(r"older,\s*(.*?)\s+or\s+(.*?),\s*and\b", q, re.IGNORECASE)
         if not m:
-            m = re.search(r"older,\s*(.*?)\s*or\s*(.*?)\?", q, re.IGNORECASE)
+            m = re.search(r"older,\s*(.*?)\s+or\s+(.*?)\?", q, re.IGNORECASE)
         name1 = m.group(1).strip() if m else "NovaTech"
         name2 = m.group(2).strip() if m else "Zenith"
         actions = [
@@ -289,7 +313,7 @@ def plan(input_data: dict) -> dict:
             {"action": "answer", "key": "final"}
         ]
     elif "revenue per employee" in q_lower:
-        m = re.search(r"revenue per employee.*of\s*(.*?)\?", q, re.IGNORECASE)
+        m = re.search(r"revenue per employee.*\bof\s+(.*?)\?", q, re.IGNORECASE)
         name = m.group(1).strip() if m else "NovaTech"
         actions = [
             {"action": "retrieve", "name": name, "key": "doc_c1"},
@@ -299,7 +323,7 @@ def plan(input_data: dict) -> dict:
             {"action": "answer", "key": "final"}
         ]
     elif "combined employee count" in q_lower:
-        m = re.search(r"combined employee count of\s*(.*?)\s*and\s*(.*?)\?", q, re.IGNORECASE)
+        m = re.search(r"combined employee count of\s+(.*?)\s+and\s+(.*?)\?", q, re.IGNORECASE)
         name1 = m.group(1).strip() if m else "NovaTech"
         name2 = m.group(2).strip() if m else "Zenith"
         actions = [
@@ -311,7 +335,7 @@ def plan(input_data: dict) -> dict:
             {"action": "answer", "key": "final"}
         ]
     elif "how many more employees" in q_lower:
-        m = re.search(r"how many more employees does\s*(.*?)\s*have compared to\s*(.*?)\?", q, re.IGNORECASE)
+        m = re.search(r"how many more employees does\s+(.*?)\s+have compared to\s+(.*?)\?", q, re.IGNORECASE)
         name1 = m.group(1).strip() if m else "NovaTech"
         name2 = m.group(2).strip() if m else "Zenith"
         actions = [
