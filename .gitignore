@@ -1,9 +1,33 @@
-﻿.env
-data/blackbox.db
-data/model.pkl
-data/metrics.json
+# ── Secrets: never commit ───────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials*.json
+service-account*.json
+client_secret*.json
+
+# ── Generated data (rebuilt by `python -m blackbox.build`) ──────────────
+data/
+
+# ── Python / tooling ───────────────────────────────────────────────────
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
 *.egg-info/
+.venv/
+venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── OS / editor ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

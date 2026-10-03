@@ -1,4 +1,4 @@
-﻿[
+[
   {"id": "novatech", "name": "NovaTech", "founded": 2009, "employees": 4200, "revenue_m": 580, "hq": "Austin", "ceo": "Sandra Lee"},
   {"id": "nova_systems", "name": "Nova Systems", "founded": 2014, "employees": 1800, "revenue_m": 210, "hq": "Denver", "ceo": "Marcus Webb"},
   {"id": "zenith", "name": "Zenith", "founded": 1998, "employees": 9800, "revenue_m": 1450, "hq": "Boston", "ceo": "Patricia Holt"},

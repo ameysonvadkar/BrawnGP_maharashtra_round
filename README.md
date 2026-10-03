@@ -48,43 +48,65 @@ flowchart LR
 | `blackbox/replay.py` | `replay()`, `oracle_output()`, `verify_step()`, `resume_state()`, `diff()` |
 | `blackbox/evaluate.py` | Top-1 / Top-3 / MRR, baselines, replay verification → `data/metrics.json` |
 | `blackbox/demo.py` | The NovaTech vs Zenith pitch scenario (`r_9001` clean, `r_9002` faulty) |
+| `blackbox/build.py` | One-command build of everything above; also run by the app on first launch |
 | `app/streamlit_app.py` | Debugger UI |
 
 ## Run it
 
 Python 3.11+. No GPU. No API key needed: without `GEMINI_API_KEY` the agent uses deterministic
-rule-based planner/answer fallbacks, so everything runs offline and reproducibly.
+rule-based planner and answer fallbacks, so everything runs offline and reproducibly.
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -r requirements.txt      # sentence-transformers / google-genai are optional (see below)
+pip install -r requirements.txt
 
-python -m blackbox.generate          # 300 labelled runs -> data/blackbox.db
-python -m blackbox.model             # train -> data/model.pkl
-python -m blackbox.evaluate          # metrics + replay verification -> data/metrics.json
-python -m blackbox.demo              # NovaTech vs Zenith demo runs (the UI also builds them)
+python -m blackbox.build             # dataset + model + metrics + demo runs (~7 s, offline)
 streamlit run app/streamlit_app.py
 ```
 
-Optional LLM backend: copy `.env.example` to `.env` and set `GEMINI_API_KEY`. `.env` is gitignored.
-Cached calls make re-runs free either way.
+`data/` is gitignored. If it's missing, the app builds it automatically on first launch.
+`python -m blackbox.build --force` rebuilds from scratch. The individual steps are also available:
+`python -m blackbox.generate`, `blackbox.model`, `blackbox.evaluate` and `blackbox.demo`.
 
-Minimal install, if you don't need the optional packages:
-`pip install streamlit plotly lightgbm shap scikit-learn rapidfuzz python-dotenv pandas numpy`.
-`sentence-transformers` is listed but not used (the semantic feature uses TF-IDF cosine), and
-`google-genai` is only imported when an API key is set.
+### Secrets and the optional LLM backend
+
+```bash
+cp .env.example .env                 # .env is gitignored; never commit it
+pip install -r requirements-llm.txt  # adds google-genai
+# then set GEMINI_API_KEY in .env
+```
+
+- `.env`, `.env.*` (except `.env.example`), `.streamlit/secrets.toml`, key and credential files,
+  and `data/` are all in `.gitignore`.
+- The cache key includes the backend (`rule-fallback` vs the Gemini model name), so cached
+  offline outputs are never served as if an LLM had produced them.
+- A placeholder value (`your_...`) counts as "no key".
+
+### Deploy (Streamlit Community Cloud)
+
+1. Push the repo (without `.env` or `data/`, both already gitignored).
+2. Create an app with **Python 3.11** and main file `app/streamlit_app.py`.
+3. Optional: add `GEMINI_API_KEY = "..."` under the app's *Secrets* (Streamlit exposes root-level
+   secrets as environment variables) and switch the dependency file to `requirements-llm.txt`.
+   Without it the app runs fully offline.
+4. The first visit builds `data/` in a few seconds. Replays from all visitors share that SQLite
+   file, which is rebuilt if the container restarts.
+
+Usage statistics are switched off in `.streamlit/config.toml`.
 
 ### Tests
 
 ```bash
-pip install pytest
-python -m pytest -q                  # 21 tests
+pip install -r requirements-dev.txt
+python -m pytest -q                  # 33 tests
 python -m scripts.test_stage5        # end-to-end demo checkpoint
+python -m scripts.test_stage2        # cache checkpoint
 ```
 
-`tests/test_core.py` runs against a throwaway SQLite DB. `tests/test_app.py` drives the UI
-headlessly with Streamlit's `AppTest`; it uses `data/` and is skipped until that has been built.
+`tests/test_core.py` runs against a throwaway SQLite DB, including a full build into a temp
+directory. `tests/test_app.py` drives the UI headlessly with Streamlit's `AppTest`; it uses
+`data/` and is skipped until that has been built.
 
 ## Results
 
@@ -100,14 +122,17 @@ failed runs are scored; benign faults (where the run still passed) are excluded.
 | **Held-out faults (F4, F5), never trained on** (70 runs) | Random step | 12.9% | 44.3% | 0.379 |
 | | Last step | 0.0% | 17.1% | 0.207 |
 | | First anomaly | 12.9% | 30.0% | 0.360 |
-| | **LightGBM ranker** | **27.1%** | **51.4%** | **0.471** |
+| | **LightGBM ranker** | **57.1%** | **57.1%** | **0.657** |
+
+Held-out by fault type: **F4 dropped context 100%** Top-1 (40 runs), **F5 bad plan 0%**
+(30 runs; the plan step is never in the top 3).
 
 **Replay verification** (patch the step with the clean run's output and replay):
 
 | | Seen | Held-out |
 |---|---|---|
-| Exact-match Top-1 | 100% | 27.1% |
-| **Root-cause verified**: top-1 step got the same input as in the clean run, and patching it alone flips fail → pass | 100% | 27.1% |
+| Exact-match Top-1 | 100% | 57.1% |
+| **Root-cause verified**: top-1 step got the same input as in the clean run, and patching it alone flips fail → pass | 100% | 57.1% |
 | Any-patch flip: patching the top-1 step flips fail → pass | 100% | 100% |
 | Labels confirmed: patching the injected step flips fail → pass | 100% | 100% |
 
@@ -116,11 +141,16 @@ failed runs are scored; benign faults (where the run still passed) are excluded.
 ### Reading these numbers honestly
 
 - **The seen-fault 100% comes from strong but legitimate grounding signals.** These include the
-  name match between the requested and retrieved entity, and whether an extracted value appears
-  in the source document. An ablation shows it: dropping `grounding_match` + `extracted_in_source`
-  drops seen Top-1 to 61%. F2 (bad calculation) is found by elimination. The seen faults are
-  synthetic and these detectors catch them directly, so **the held-out row is the real
-  generalisation number**: 27% Top-1, about 2× the best baseline.
+  name match between the requested and retrieved entity, and whether an extracted value equals a
+  value in the source document. An ablation shows it: dropping `grounding_match` +
+  `extracted_in_source` drops seen Top-1 to 61%. F2 (bad calculation) is found by elimination.
+  The seen faults are synthetic and these detectors catch them directly, so **the held-out row
+  is the real generalisation number**.
+- **Held-out is a split result, not an average skill.** The model transfers what it learned on F3
+  (an extracted value that isn't in the source document) to F4, which it never saw, and gets it
+  100% right. It cannot see F5 at all, because a wrong plan looks healthy and its damage only
+  shows up in a later calculation. We deliberately did not add a plan-specific feature after
+  seeing the held-out results; that would be tuning on the test set.
 - **"Any-patch flip" is not proof of root cause.** Giving any step downstream of the fault its
   clean output also fixes the run, which is why it is 100% even where the blame is wrong. We
   report the stricter *root-cause verified* metric next to exact-match accuracy, never on its own.
@@ -128,6 +158,10 @@ failed runs are scored; benign faults (where the run still passed) are excluded.
   earlier version of F1 stamped injected retrievals with `top_scores=[1.0, 0.0]` (a gap of exactly
   1.0, which never occurs naturally). That leaked the label and was removed: injected retrievals
   now keep the real retrieval scores.
+- **Bug fixes that changed the numbers.** Earlier versions had 16/60 clean runs failing (calculator,
+  planner and scoring bugs, which made those labels wrong). `extracted_in_source` used substring
+  matching, so a zeroed value "0" was found inside "2009" and F4 was invisible. With these fixed,
+  held-out Top-1 went from 0% to 27% to 57%.
 - The 14.2% step accuracy reported on Who&When (below) was measured on a different and much harder
   benchmark (real multi-agent logs), so it is context for the problem, not a head-to-head
   comparison.
@@ -143,7 +177,7 @@ failed runs are scored; benign faults (where the run still passed) are excluded.
    Reasons: retrieved **Zenit Labs** for requested **Zenith** (name match 0.62); the data flow
    is 3 → 4 → 5 → 6.
 4. **Patch & replay (2:15–3:15).** Pick *Zenith* as the document and press **Patch & replay**:
-   3 prefix steps reused from cache, 1 patched, 4 LLM calls avoided, and the answer flips to
+   3 prefix steps reused from cache, 1 patched, 4 LLM-type steps served from cache, and the answer flips to
    "Zenith is older by 11 years". The diff shows the first divergence at step 3, fail → pass.
    Optionally open **Auto-verify** to show that a downstream step also flips but is *not* the
    root cause.
@@ -158,13 +192,16 @@ seconds on a laptop.
 
 ## Limitations
 
-- One agent, one task domain, synthetic faults. Held-out Top-1 is 27%; F5 (bad plan) is the
-  hardest, because its effect only shows up in a later calculation.
-- `calc_args_traceable` is effectively always 0 (the planner's expressions use state keys, not
-  literal numbers), so calculation errors are only found by elimination. A feature that
-  re-evaluates the expression against the state would help.
+- One agent, one task domain, synthetic faults.
+- F5 (bad plan) is not localised (0% Top-1 on held-out). Its effect only appears in a later
+  calculation, and no current feature checks a plan against the question.
+- F2 (bad calculation) is found by elimination. A feature that re-evaluates the expression against
+  the state would detect it directly.
+- Without an API key the agent runs on deterministic rule-based fallbacks, not an LLM. With a key,
+  the plan, extract and answer steps call Gemini through the same recorder and cache.
 - Replay verification needs an oracle (a clean run of the same question). In the UI, manual
   patches work without one.
+- No LLM-as-judge baseline yet (it needs an API key).
 
 ## References
 

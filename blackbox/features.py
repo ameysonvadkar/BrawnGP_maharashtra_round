@@ -6,6 +6,7 @@ Features DO NOT read fault_type, fault_step, or any injected flag.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import numpy as np
@@ -13,6 +14,7 @@ from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from agent.tools import SAFE_BUILTINS
 from blackbox.recorder import get_steps, get_run, list_runs
 
 FEATURE_NAMES = [
@@ -37,6 +39,26 @@ FEATURE_NAMES = [
 ]
 
 _tfidf = TfidfVectorizer()
+_NAME = re.compile(r"[A-Za-z_]\w*")
+_BUILTIN_NAMES = set(SAFE_BUILTINS)
+
+
+def _value_in_source(value: Any, company: dict) -> bool:
+    """True if the extracted value equals one of the source document's field values.
+
+    Exact (numeric-aware) match, not substring: "0" must not match "2009".
+    """
+    if value is None or value == "":
+        return False
+    for field_value in company.values():
+        if str(field_value) == str(value):
+            return True
+        try:
+            if float(field_value) == float(value):
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[dict]]:
@@ -123,16 +145,14 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
                 top_score_gap = float(top_scores[0] - top_scores[1])
 
         elif stype == "extract" and isinstance(out, dict):
-            val = str(out.get("value", ""))
             comp = inp.get("company", {})
-            comp_str = json.dumps(comp) if isinstance(comp, dict) else str(comp)
-            if val and val in comp_str:
+            if isinstance(comp, dict) and _value_in_source(out.get("value"), comp):
                 extracted_in_source = 1.0
 
         elif stype == "calculate" and isinstance(out, dict):
-            expr = inp.get("expr", "")
-            nums_in_state = [str(v) for v in state_before.values() if isinstance(v, (int, float))]
-            if any(num in expr for num in nums_in_state):
+            # Every variable in the expression must come from an earlier step's output
+            names = set(_NAME.findall(inp.get("expr", ""))) - _BUILTIN_NAMES
+            if names and names <= set(state_before):
                 calc_args_traceable = 1.0
 
         # 4. Data flow features
@@ -168,7 +188,7 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
 
 
 def build_feature_dataset(
-    splits: list[str] = ["train"],
+    splits: tuple[str, ...] = ("train",),
     exclude_benign: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict]]:
     """Build feature dataset for training/evaluating step ranker.

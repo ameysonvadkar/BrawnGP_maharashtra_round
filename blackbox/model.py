@@ -5,7 +5,6 @@ and provides predict(run_id) returning step blame scores and SHAP top-3 reasons.
 """
 from __future__ import annotations
 
-import os
 import pickle
 import warnings
 from pathlib import Path

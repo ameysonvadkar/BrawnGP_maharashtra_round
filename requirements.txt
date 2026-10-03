@@ -1,11 +1,10 @@
-﻿streamlit>=1.35.0
-plotly>=5.22.0
-lightgbm>=4.3.0
-shap>=0.45.0
-scikit-learn>=1.5.0
-rapidfuzz>=3.9.0
-sentence-transformers>=3.0.0
-python-dotenv>=1.0.0
-pandas>=2.2.0
-numpy>=1.26.0
-google-genai>=1.0.0
+# Runtime dependencies (tested with Python 3.11). Pinned for reproducible deploys.
+streamlit==1.65.0
+plotly==7.1.0
+lightgbm==4.7.0
+shap==0.51.0
+scikit-learn==1.9.1
+rapidfuzz==3.14.6
+python-dotenv==1.2.4
+pandas==3.0.6
+numpy==2.4.6

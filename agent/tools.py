@@ -1,4 +1,4 @@
-﻿"""tools.py — retrieve, extract, calculate, answer, plan for the Black Box agent.
+"""tools.py — retrieve, extract, calculate, answer, plan for the Black Box agent.
 
 All public functions are pure callables; they are wrapped by runner.py via
 record_step() so nothing here calls the LLM directly in a way that bypasses
@@ -94,12 +94,29 @@ def get_kb() -> list[dict]:
 # ── LLM helper with deterministic fallback ──────────────────────────────────
 
 _GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-_API_KEY = os.getenv("GEMINI_API_KEY", "")
+FALLBACK_MODEL = "rule-fallback"
+
+
+def _api_key() -> str | None:
+    """The Gemini key from the environment, or None if unset or still a placeholder."""
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key or key.startswith("your_"):
+        return None
+    return key
+
+
+def llm_model_id() -> str:
+    """Identity of the backend that answers LLM steps; part of the cache key.
+
+    Without a key the deterministic rule-based fallbacks run, so their outputs
+    must never be served from cache as if Gemini had produced them (or vice versa).
+    """
+    return _GEMINI_MODEL if _api_key() else FALLBACK_MODEL
 
 
 def _call_gemini(prompt: str) -> str | None:
-    api_key = os.getenv("GEMINI_API_KEY", _API_KEY)
-    if not api_key or api_key.startswith("your_"):
+    api_key = _api_key()
+    if not api_key:
         return None
     try:
         from google import genai

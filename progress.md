@@ -1,4 +1,4 @@
-﻿# Progress: Black Box
+# Progress: Black Box
 
 Last updated: 2026-10-04
 Code freeze target: hour 5:45
@@ -66,7 +66,7 @@ Code freeze target: hour 5:45
 - [ ] 2-minute backup demo video (human: follow the demo script in README)
 - [ ] Pitch rehearsed twice (human)
 
-## Metrics (re-evaluated 2026-10-04 after bug and leakage fixes)
+## Metrics (re-evaluated 2026-10-04 after the second bug-fix pass)
 
 | Split | Method | Top-1 | Top-3 | MRR |
 |---|---|---|---|---|
@@ -77,11 +77,15 @@ Code freeze target: hour 5:45
 | **Held-out faults (F4, F5)** (70 runs) | Random | 12.9% | 44.3% | 0.379 |
 | | Last step | 0.0% | 17.1% | 0.207 |
 | | First anomaly | 12.9% | 30.0% | 0.360 |
-| | **LightGBM** | **27.1%** | **51.4%** | **0.471** |
+| | **LightGBM** | **57.1%** | **57.1%** | **0.657** |
 
-Replay verification (LightGBM top-1): root-cause verified 100% seen / 27.1% held-out; any-patch flip 100% / 100%; labels confirmed by replay 100% / 100%.
+Held-out by type: F4 dropped_context 100% (40 runs), F5 bad_plan 0% (30 runs).
+Replay verification (LightGBM top-1): root-cause verified 100% seen / 57.1% held-out; any-patch flip 100% / 100%; labels confirmed by replay 100% / 100%.
 
 ## Decisions log
+
+- 2026-10-04: Second bug-fix pass: success check now requires the gold company (not its near-duplicate) and any matching number; `extracted_in_source` uses exact value matching (substring let "0" match "2009", hiding F4); `calc_args_traceable` now works; cache key includes the real backend (`rule-fallback` vs Gemini); re-recording a run ID drops stale steps; SQLite connections are closed. Held-out Top-1 27% -> 57% (F4 100%, F5 0%). No plan-specific feature added, to avoid tuning on the held-out set.
+- 2026-10-04: Deployment: `python -m blackbox.build` and auto-build on first app launch; pinned requirements (unused sentence-transformers dropped; google-genai moved to requirements-llm.txt); secrets-focused .gitignore; local .env from template (placeholder only).
 
 - 2026-10-04: Fixed bugs that made 16/60 clean runs fail (calculator rejected `round(x, 2)`; planner regex matched "or"/"of" inside names like "Orbita"/"Solara Soft"; success check compared "150" vs "150.0" as strings). Faults on those questions were mislabelled. All 60 clean runs now pass; dataset regenerated.
 - 2026-10-04: Calculator hardened with an AST whitelist (blocks attribute access, imports, strings, kwargs).
@@ -108,6 +112,7 @@ Replay verification (LightGBM top-1): root-cause verified 100% seen / 27.1% held
 - 2026-10-04: Stage 5 completed: replay engine, oracle verification, demo runs, bug + leakage fixes, dataset regenerated, pytest suite.
 - 2026-10-04: Stage 6 completed: Streamlit debugger (timeline, evidence, patch & replay, diff, auto-verify, metrics), AppTest suite.
 - 2026-10-04: Stage 7 completed: README, screenshots in docs/, CLAUDE.md commands updated.
+- 2026-10-04: Hardening pass: 9 bugs fixed with regression tests (33 tests), ruff clean, repo cleanup (BOMs, obsolete scripts/write_generate.py), deploy path verified on a fresh clone with a clean venv.
 
 ## NEXT STEPS
 

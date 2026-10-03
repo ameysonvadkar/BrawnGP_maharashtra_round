@@ -9,13 +9,9 @@ from __future__ import annotations
 import json
 import pathlib
 import random
-from typing import Any
-
 from agent.runner import run
-from blackbox.faults import inject_fault, FAULT_TYPES, TRAIN_FAULTS, HELDOUT_FAULTS
+from blackbox.faults import inject_fault, TRAIN_FAULTS, HELDOUT_FAULTS
 from blackbox.recorder import init_db, get_steps, _get_conn
-
-random.seed(42)
 
 QUESTIONS_PATH = pathlib.Path("agent/questions.json")
 KB_PATH = pathlib.Path("agent/kb.json")
@@ -29,8 +25,9 @@ def load_kb() -> list[dict]:
     return json.loads(KB_PATH.read_text(encoding="utf-8-sig"))
 
 
-def generate_dataset(num_questions: int = 60) -> dict[str, int]:
-    """Generate clean and faulty runs across questions."""
+def generate_dataset(num_questions: int = 60, seed: int = 42) -> dict[str, int]:
+    """Generate clean and faulty runs across questions (deterministic for a given seed)."""
+    random.seed(seed)
     init_db()
     questions = load_questions()[:num_questions]
     kb = load_kb()
@@ -81,7 +78,7 @@ def generate_dataset(num_questions: int = 60) -> dict[str, int]:
         else:
             fault_specs = random.choices(TRAIN_FAULTS, k=2) + random.choices(HELDOUT_FAULTS, k=2)
 
-        for f_idx, ftype in enumerate(fault_specs):
+        for ftype in fault_specs:
             run_counter += 1
             fault_run_id = f"r_{run_counter:04d}"
 
@@ -152,7 +149,7 @@ def generate_dataset(num_questions: int = 60) -> dict[str, int]:
     }
 
     print("\n=======================================================")
-    print(f"Dataset Generation Complete!")
+    print("Dataset Generation Complete!")
     print(f"Total Runs: {run_counter}")
     print(f"Clean Runs: {total_clean}")
     print(f"Faulty Runs: {total_faulty} (Failed: {total_failed}, Benign: {total_benign})")

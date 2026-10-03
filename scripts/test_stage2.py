@@ -1,6 +1,10 @@
-﻿import json
+"""Stage 2 checkpoint: a rerun of the same question is served entirely from cache.
+
+    python -m scripts.test_stage2
+"""
+import json
 from agent.runner import run
-from blackbox.recorder import cache_stats, get_steps
+from blackbox.recorder import cache_stats, delete_run
 
 with open('agent/questions.json', encoding='utf-8-sig') as f:
     questions = json.load(f)
@@ -37,3 +41,7 @@ assert stats6['reused'] == res6['n_steps'], f"Expected all {res6['n_steps']} ste
 print("\n=======================================================")
 print(">>> STAGE 2 VERIFIED: 100% Cache Hit (0 re-executed)! <<<")
 print("=======================================================")
+
+# Leave the real DB as we found it
+for rid in ('test_r005', 'test_r006'):
+    delete_run(rid)

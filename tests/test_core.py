@@ -116,3 +116,66 @@ def test_diff_reports_first_divergence_and_outcome():
     d = diff("r_0002", "rp_test")
     assert d["first_divergent_step"] == k
     assert d["outcome_change"] == "fail -> pass"
+
+
+# ── Bug-fix regressions ─────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("answer, gold, expected", [
+    ("Zenith is older by 11 years.", "Zenith is older by 11 years.", True),
+    ("Zenith, founded in 1998, is older by 11 years.", "Zenith is older by 11 years.", True),
+    ("NovaTech is older by 11 years.", "Zenith is older by 11 years.", False),  # right number, wrong company
+    ("Nexion Labs is older by 12 years.", "Nexion is older by 12 years.", False),  # near-duplicate name
+    ("Nexion is older by 12 years.", "Nexion is older by 12 years.", True),
+    ("years.", "Zenith is older by 11 years.", False),  # no number at all
+    ("18,400 employees combined.", "18400 employees combined.", True),
+])
+def test_check_success_requires_number_and_company(answer, gold, expected):
+    assert _check_success(answer, gold) is expected
+
+
+def test_value_in_source_is_exact_not_substring():
+    from blackbox.features import _value_in_source
+    company = {"founded": 2009, "employees": 4200, "name": "NovaTech"}
+    assert _value_in_source(2009, company) and _value_in_source("2009", company)
+    assert not _value_in_source(0, company)  # "0" is a substring of "2009"
+    assert not _value_in_source(2015, company)
+
+
+def test_calc_args_traceable_fires_on_clean_calculation():
+    from blackbox.features import FEATURE_NAMES, extract_features_for_run
+    q = next(q for q in _questions() if q["template"] == "older_by")
+    run(q["question"], q["id"], "r_0001", q["gold"], "train")
+    X, _, meta = extract_features_for_run("r_0001")
+    calc_row = next(i for i, m in enumerate(meta) if m["type"] == "calculate")
+    assert X[calc_row][FEATURE_NAMES.index("calc_args_traceable")] == 1.0
+
+
+def test_rerecording_a_run_id_drops_stale_steps():
+    q = next(q for q in _questions() if q["template"] == "older_by")
+    run(q["question"], q["id"], "r_0001", q["gold"], "train")
+    short_plan = {"actions": [{"action": "answer", "key": "final"}]}
+    run(q["question"], q["id"], "r_0001", q["gold"], "train", overrides={0: short_plan})
+    assert len(recorder.get_steps("r_0001")) == 2
+
+
+def test_cache_key_separates_fallback_from_real_llm(monkeypatch):
+    from agent.tools import FALLBACK_MODEL, llm_model_id
+    monkeypatch.setenv("GEMINI_API_KEY", "your_gemini_api_key_here")  # placeholder = no key
+    assert llm_model_id() == FALLBACK_MODEL
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-not-a-real-key")
+    assert llm_model_id() != FALLBACK_MODEL
+
+
+def test_build_all_creates_every_artifact(tmp_path, monkeypatch):
+    import blackbox.build as build
+    import blackbox.evaluate as evaluate
+    import blackbox.model as model
+    monkeypatch.setattr(model, "MODEL_PATH", tmp_path / "model.pkl")
+    monkeypatch.setattr(evaluate, "METRICS_PATH", tmp_path / "metrics.json")
+    monkeypatch.setattr(build, "ARTIFACTS", (recorder.DB_PATH, model.MODEL_PATH, evaluate.METRICS_PATH))
+    assert not build.is_built()
+    build.build_all()
+    assert build.is_built()
+    metrics = json.loads((tmp_path / "metrics.json").read_text())
+    assert metrics["seen_faults_test"]["n_runs"] > 0 and metrics["heldout_faults"]["n_runs"] > 0
+    assert recorder.get_run("r_9002") is not None  # demo run recorded

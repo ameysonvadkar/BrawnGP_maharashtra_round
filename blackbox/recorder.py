@@ -1,13 +1,14 @@
-﻿"""recorder.py — Trace recorder and content-hashed call cache for Black Box."""
+"""recorder.py — Trace recorder and content-hashed call cache for Black Box."""
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import sqlite3
 import time
-import datetime
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 DB_PATH = Path("data/blackbox.db")
 
@@ -52,11 +53,17 @@ CREATE TABLE IF NOT EXISTS cache (
 """
 
 
-def _get_conn() -> sqlite3.Connection:
+@contextmanager
+def _get_conn() -> Iterator[sqlite3.Connection]:
+    """Open a connection, commit on success (roll back on error) and always close it."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -178,7 +185,7 @@ def save_run(
                 run_id, question_id, question, gold,
                 final_answer, int(success),
                 fault_type, fault_step, parent_run_id, split,
-                datetime.datetime.utcnow().isoformat(),
+                datetime.datetime.now(datetime.timezone.utc).isoformat(),
             ),
         )
 

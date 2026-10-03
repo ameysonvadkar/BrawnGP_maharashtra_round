@@ -25,6 +25,7 @@ import streamlit as st  # noqa: E402
 
 from agent.tools import get_kb, retrieve_by_id  # noqa: E402
 from blackbox import recorder  # noqa: E402
+from blackbox.build import build_all, is_built  # noqa: E402
 from blackbox.demo import DEMO_FAULT_RUN, ensure_demo  # noqa: E402
 from blackbox.features import FEATURE_NAMES  # noqa: E402
 from blackbox.model import MODEL_PATH, predict  # noqa: E402
@@ -175,11 +176,18 @@ def run_label(r: dict) -> str:
 
 st.set_page_config(page_title="Black Box", page_icon="⬛", layout="wide")
 
-if not recorder.DB_PATH.exists():
-    st.title("Black Box")
-    st.error("No trace database found at `data/blackbox.db`. Build it first:")
-    st.code("python -m blackbox.generate\npython -m blackbox.model\npython -m blackbox.evaluate", language="bash")
-    st.stop()
+@st.cache_resource(show_spinner=False)
+def build_once() -> bool:
+    """Build data/ once per server process, even if several visitors arrive together."""
+    build_all()
+    return True
+
+
+if not is_built():
+    # data/ is gitignored, so a fresh clone or deploy builds it here (offline, a few seconds)
+    with st.spinner("First launch: recording 300 agent runs, training the ranker, evaluating…"):
+        build_once()
+    cached_predict.clear()
 
 ensure_demo()
 
@@ -212,12 +220,15 @@ with st.sidebar:
         st.stop()
     ids = [r["run_id"] for r in runs]
     default_idx = ids.index(DEMO_FAULT_RUN) if DEMO_FAULT_RUN in ids else 0
-    run_id = st.selectbox("Run", ids, index=default_idx,
-                          format_func=lambda rid: run_label(next(r for r in runs if r["run_id"] == rid)))
+    labels_by_id = {r["run_id"]: run_label(r) for r in runs}
+    run_id = st.selectbox("Run", ids, index=default_idx, format_func=labels_by_id.get)
 
 run_info = recorder.get_run(run_id)
 steps = recorder.get_steps(run_id)
 steps_by_idx = {s["step_idx"]: s for s in steps}
+if not steps:
+    st.warning(f"Run `{run_id}` has no recorded steps.")
+    st.stop()
 
 # ── debugger tab ────────────────────────────────────────────────────────────
 
@@ -240,8 +251,8 @@ with tab_debug:
     labels = [f"{i} · {steps_by_idx[i]['type']}" for i in order]
     fig = go.Figure()
     for name, spec in STATUS.items():
-        xs = [lab for lab, stt in zip(labels, statuses) if stt == name]
-        ys = [sc for sc, stt in zip(scores, statuses) if stt == name]
+        xs = [lab for lab, stt in zip(labels, statuses, strict=True) if stt == name]
+        ys = [sc for sc, stt in zip(scores, statuses, strict=True) if stt == name]
         if not xs:
             continue
         fig.add_bar(
@@ -455,7 +466,7 @@ with tab_metrics:
             "heldout_faults": "Held-out faults (F4, F5) · never trained on",
         }
         cols = st.columns(2)
-        for col, (key, title) in zip(cols, split_titles.items()):
+        for col, (key, title) in zip(cols, split_titles.items(), strict=True):
             block = metrics.get(key, {})
             with col:
                 st.markdown(f"**{title}**  \n{block.get('n_runs', 0)} failed runs")

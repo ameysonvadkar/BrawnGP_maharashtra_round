@@ -1,4 +1,4 @@
-﻿# Black Box: Implementation Plan
+# Black Box: Implementation Plan
 
 One agent, five injected fault types, ~300 labelled runs, a LightGBM step ranker, cached suffix-only replay, and a Streamlit debugger. Build order: data, model, replay, UI. Code freeze at 5:45.
 

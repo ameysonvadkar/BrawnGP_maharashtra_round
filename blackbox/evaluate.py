@@ -13,11 +13,9 @@ import random
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 
-from blackbox.model import predict, load_model
-from blackbox.recorder import list_runs, get_steps, get_run
-from blackbox.features import extract_features_for_run
+from blackbox.model import predict
+from blackbox.recorder import list_runs, get_steps
 from blackbox.replay import verify_step
 
 METRICS_PATH = Path("data/metrics.json")

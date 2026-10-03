@@ -1,4 +1,4 @@
-﻿"""faults.py — Injected fault types F1 to F5 for Black Box dataset generation.
+"""faults.py — Injected fault types F1 to F5 for Black Box dataset generation.
 
 Each fault injector is a function:
   inject_fault(step_type, clean_output, state_before, kb) -> faulty_output
@@ -73,7 +73,6 @@ def _inject_f2_bad_tool_arg(clean_output: dict, state_before: dict) -> dict:
     if not isinstance(clean_output, dict):
         return clean_output
     out = copy.deepcopy(clean_output)
-    expr = out.get("expr", "")
     res = out.get("result", 0)
 
     # Distort result by multiplying or subtracting an arbitrary offset from state

@@ -1,4 +1,4 @@
-﻿# CLAUDE.md: Black Box
+# CLAUDE.md: Black Box
 
 Black Box is a debugger for AI agents. It records agent runs, learns which step caused a failure (LightGBM ranker), and verifies the diagnosis by patching that step and replaying only the later steps from a content-hashed cache. Hackathon project, one person, 7-hour build.
 
@@ -8,13 +8,11 @@ Read `IMPLEMENTATION_PLAN.md` for specs and `progress.md` for current state befo
 
 ```bash
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m blackbox.generate        # build the labelled dataset into data/blackbox.db
-python -m blackbox.model           # train and save data/model.pkl
-python -m blackbox.evaluate        # write data/metrics.json (incl. replay verification)
-python -m blackbox.demo            # NovaTech vs Zenith demo runs (split "demo")
-streamlit run app/streamlit_app.py
+pip install -r requirements-dev.txt
+python -m blackbox.build           # dataset + model + metrics + demo runs (--force to rebuild)
+streamlit run app/streamlit_app.py # also builds data/ on first launch if missing
 python -m pytest -q                # tests (core uses a temp DB; app test needs data/)
+ruff check agent blackbox app scripts tests --select F,E9,B
 ```
 
 ## Architecture in one paragraph
