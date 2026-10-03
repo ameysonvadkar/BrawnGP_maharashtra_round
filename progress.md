@@ -84,6 +84,7 @@ Replay verification (LightGBM top-1): root-cause verified 100% seen / 57.1% held
 
 ## Decisions log
 
+- 2026-10-04: Replay is now deterministic: a step whose input is unchanged returns the original run's recorded output (injected fault included) instead of a fresh cached call. Before, any replay silently dropped the injected fault, so a no-op patch could "fix" a run and auto-verify could mark an upstream step as a verified root cause. Headline metrics unchanged.
 - 2026-10-04: Second bug-fix pass: success check now requires the gold company (not its near-duplicate) and any matching number; `extracted_in_source` uses exact value matching (substring let "0" match "2009", hiding F4); `calc_args_traceable` now works; cache key includes the real backend (`rule-fallback` vs Gemini); re-recording a run ID drops stale steps; SQLite connections are closed. Held-out Top-1 27% -> 57% (F4 100%, F5 0%). No plan-specific feature added, to avoid tuning on the held-out set.
 - 2026-10-04: Deployment: `python -m blackbox.build` and auto-build on first app launch; pinned requirements (unused sentence-transformers dropped; google-genai moved to requirements-llm.txt); secrets-focused .gitignore; local .env from template (placeholder only).
 

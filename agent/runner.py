@@ -53,6 +53,7 @@ def run(
     fault_step: int | None = None,
     overrides: dict[int, Any] | None = None,
     parent_run_id: str | None = None,
+    recorded_steps: dict[int, dict] | None = None,
 ) -> dict:
     """Execute one agent run and return a result dict.
 
@@ -66,6 +67,8 @@ def run(
         fault_step: Step index of the injected fault.
         overrides: {step_idx: output} to replace step outputs.
         parent_run_id: Set when this is a replay of another run.
+        recorded_steps: {step_idx: {"input", "output", "error"}} of the run being
+            replayed. A step whose input is unchanged returns its recorded output.
 
     Returns:
         dict with run_id, final_answer, success, n_steps, state, n_reused, n_reexecuted.
@@ -73,6 +76,7 @@ def run(
     init_db()
     delete_run(run_id)  # never mix steps from an earlier recording of the same ID
     overrides = overrides or {}
+    recorded_steps = recorded_steps or {}
     llm_model = llm_model_id()
     state = TrackedState()
     key_written_by: dict[str, int] = {}  # state key -> step that wrote it
@@ -82,7 +86,7 @@ def run(
         return record_step(
             run_id=run_id, idx=idx, step_type=step_type, input_data=inp, fn=fn,
             state_before=copy.deepcopy(dict(state)), parents=parents, model=model,
-            override=overrides.get(idx),
+            override=overrides.get(idx), recorded=recorded_steps.get(idx),
         )
 
     def parents_of(keys: set[str]) -> list[int]:

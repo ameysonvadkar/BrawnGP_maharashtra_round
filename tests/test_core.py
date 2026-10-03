@@ -107,7 +107,25 @@ def test_root_cause_verification_rejects_downstream_steps():
     k = _faulty_pair()
     assert verify_step("r_0002", k)["root_cause_verified"]
     downstream = verify_step("r_0002", k + 1)  # extract fed by the wrong document
-    assert downstream["verified"] and not downstream["root_cause_verified"]
+    assert not downstream["input_matches_clean"] and not downstream["root_cause_verified"]
+
+
+def test_replay_keeps_injected_fault_when_another_step_is_patched():
+    # Regression: replays used to re-run unpatched steps through the cache, which
+    # silently dropped the injected fault, so a no-op patch "fixed" the run.
+    k = _faulty_pair()
+    noop = verify_step("r_0002", k - 1) if k > 1 else verify_step("r_0002", 0)
+    assert not noop["success"] and not noop["verified"]
+    faulty = json.loads(recorder.get_steps("r_0002")[k]["output_json"])
+    replayed = recorder.get_steps(noop["run_id"])[k]
+    assert json.loads(replayed["output_json"]) == faulty and replayed["cache_hit"] == 1
+
+
+def test_unpatched_replay_reproduces_the_original_run():
+    _faulty_pair()
+    res = replay("r_0002", {}, new_run_id="rp_same")
+    assert not res["success"] and res["n_reexecuted"] == 0
+    assert diff("r_0002", "rp_same")["first_divergent_step"] is None
 
 
 def test_diff_reports_first_divergence_and_outcome():

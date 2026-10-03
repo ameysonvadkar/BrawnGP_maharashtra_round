@@ -28,7 +28,11 @@ def replay(
     overrides: dict[int, Any],
     new_run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Re-execute a run with patched step outputs, serving earlier steps from cache.
+    """Re-execute a run with patched step outputs.
+
+    Steps whose input is unchanged reproduce the original run's recorded output
+    (counted as reused, like cache hits); steps whose input changed are re-executed
+    through the cache.
 
     Args:
         run_id: Parent run ID to replay.
@@ -52,6 +56,17 @@ def replay(
     else:
         delete_run(new_run_id)
 
+    # Steps whose input is unchanged must reproduce the original run (including an
+    # injected fault), not a fresh cached call, or any replay would "fix" the run.
+    recorded = {
+        s["step_idx"]: {
+            "input": json.loads(s["input_json"]) if s["input_json"] else None,
+            "output": json.loads(s["output_json"]) if s["output_json"] else None,
+            "error": s["error"],
+        }
+        for s in get_steps(run_id)
+    }
+
     res = run(
         question=parent["question"],
         question_id=parent["question_id"],
@@ -62,6 +77,7 @@ def replay(
         fault_step=None,
         overrides=overrides,
         parent_run_id=run_id,
+        recorded_steps=recorded,
     )
 
     first_patch = min(overrides) if overrides else None

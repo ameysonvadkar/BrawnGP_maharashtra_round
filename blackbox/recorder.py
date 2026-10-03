@@ -77,9 +77,12 @@ def init_db() -> None:
 PROMPT_VERSION = "v1"
 
 
+def _canonical(data: Any) -> str:
+    return json.dumps(data, sort_keys=True, ensure_ascii=False)
+
+
 def make_cache_key(step_type: str, model: str, input_data: Any) -> str:
-    canonical = json.dumps(input_data, sort_keys=True, ensure_ascii=False)
-    raw = f"{step_type}|{PROMPT_VERSION}|{model}|{canonical}"
+    raw = f"{step_type}|{PROMPT_VERSION}|{model}|{_canonical(input_data)}"
     return hashlib.sha1(raw.encode()).hexdigest()
 
 
@@ -112,8 +115,14 @@ def record_step(
     parents: list[int],
     model: str = "tool",
     override: Any = None,
+    recorded: dict | None = None,
 ) -> Any:
-    """Execute one agent step, managing cache and recording."""
+    """Execute one agent step, managing cache and recording.
+
+    Precedence: `override` (a patched output) > `recorded` (the original run's step,
+    reused only if this step's input is unchanged, so a replay reproduces the original
+    run exactly, injected faults included) > cache > real call.
+    """
     cache_key = make_cache_key(step_type, model, input_data)
     cache_hit = 0
     error = None
@@ -124,6 +133,10 @@ def record_step(
         if override is not None:
             output = override
             cache_hit = 0
+        elif recorded is not None and _canonical(recorded["input"]) == _canonical(input_data):
+            output = recorded["output"]
+            error = recorded.get("error")
+            cache_hit = 1
         else:
             is_hit, cached = cache_get(cache_key)
             if is_hit:
