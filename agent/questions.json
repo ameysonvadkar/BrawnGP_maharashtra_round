@@ -1,0 +1,667 @@
+[
+  {
+    "id": "q001",
+    "template": "older_by",
+    "companies": [
+      "novatech",
+      "nova_systems"
+    ],
+    "question": "Which company is older, NovaTech or Nova Systems, and by how many years?",
+    "gold": "NovaTech is older by 5 years.",
+    "gold_value": 5,
+    "gold_name": "NovaTech"
+  },
+  {
+    "id": "q049",
+    "template": "combined_emp",
+    "companies": [
+      "prismworks",
+      "neuralaxis"
+    ],
+    "question": "What is the combined employee count of PrismWorks and NeuralAxis?",
+    "gold": "18400 employees combined.",
+    "gold_value": 18400
+  },
+  {
+    "id": "q026",
+    "template": "rev_per_emp",
+    "companies": [
+      "spectral"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Spectral?",
+    "gold": "$135.94K per employee.",
+    "gold_value": 135.94
+  },
+  {
+    "id": "q035",
+    "template": "rev_per_emp",
+    "companies": [
+      "nexion"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Nexion?",
+    "gold": "$144.83K per employee.",
+    "gold_value": 144.83
+  },
+  {
+    "id": "q017",
+    "template": "older_by",
+    "companies": [
+      "spectral",
+      "spectra_ai"
+    ],
+    "question": "Which company is older, Spectral or Spectra AI, and by how many years?",
+    "gold": "Spectral is older by 13 years.",
+    "gold_value": 13,
+    "gold_name": "Spectral"
+  },
+  {
+    "id": "q033",
+    "template": "rev_per_emp",
+    "companies": [
+      "neuralax"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of NeuralAx?",
+    "gold": "$150.0K per employee.",
+    "gold_value": 150.0
+  },
+  {
+    "id": "q020",
+    "template": "older_by",
+    "companies": [
+      "kaleidix",
+      "kalex_io"
+    ],
+    "question": "Which company is older, Kaleidix or Kalex IO, and by how many years?",
+    "gold": "Kaleidix is older by 13 years.",
+    "gold_value": 13,
+    "gold_name": "Kaleidix"
+  },
+  {
+    "id": "q060",
+    "template": "emp_diff",
+    "companies": [
+      "cruxlab",
+      "crux_ai"
+    ],
+    "question": "How many more employees does CruxLab have compared to CruxAI?",
+    "gold": "CruxLab has 6420 more employees.",
+    "gold_value": 6420
+  },
+  {
+    "id": "q055",
+    "template": "emp_diff",
+    "companies": [
+      "solara",
+      "solara_soft"
+    ],
+    "question": "How many more employees does Solara have compared to Solara Soft?",
+    "gold": "Solara has 4430 more employees.",
+    "gold_value": 4430
+  },
+  {
+    "id": "q028",
+    "template": "rev_per_emp",
+    "companies": [
+      "terra_tech"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Terra Tech?",
+    "gold": "$135.56K per employee.",
+    "gold_value": 135.56
+  },
+  {
+    "id": "q031",
+    "template": "rev_per_emp",
+    "companies": [
+      "neuralaxis"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of NeuralAxis?",
+    "gold": "$172.32K per employee.",
+    "gold_value": 172.32
+  },
+  {
+    "id": "q048",
+    "template": "combined_emp",
+    "companies": [
+      "apex_data",
+      "datavex"
+    ],
+    "question": "What is the combined employee count of Apex Data and Datavex?",
+    "gold": "10000 employees combined.",
+    "gold_value": 10000
+  },
+  {
+    "id": "q012",
+    "template": "older_by",
+    "companies": [
+      "datavex",
+      "datavex_ai"
+    ],
+    "question": "Which company is older, Datavex or Datavex AI, and by how many years?",
+    "gold": "Datavex is older by 19 years.",
+    "gold_value": 19,
+    "gold_name": "Datavex"
+  },
+  {
+    "id": "q010",
+    "template": "older_by",
+    "companies": [
+      "cruxlab",
+      "crux_ai"
+    ],
+    "question": "Which company is older, CruxLab or CruxAI, and by how many years?",
+    "gold": "CruxLab is older by 16 years.",
+    "gold_value": 16,
+    "gold_name": "CruxLab"
+  },
+  {
+    "id": "q004",
+    "template": "older_by",
+    "companies": [
+      "prismworks",
+      "prism_ai"
+    ],
+    "question": "Which company is older, PrismWorks or Prism AI, and by how many years?",
+    "gold": "PrismWorks is older by 15 years.",
+    "gold_value": 15,
+    "gold_name": "PrismWorks"
+  },
+  {
+    "id": "q053",
+    "template": "emp_diff",
+    "companies": [
+      "mosaiq",
+      "mosaic_data"
+    ],
+    "question": "How many more employees does MosaIQ have compared to Mosaic Data?",
+    "gold": "MosaIQ has 4600 more employees.",
+    "gold_value": 4600
+  },
+  {
+    "id": "q029",
+    "template": "rev_per_emp",
+    "companies": [
+      "apexion"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Apexion?",
+    "gold": "$132.73K per employee.",
+    "gold_value": 132.73
+  },
+  {
+    "id": "q052",
+    "template": "emp_diff",
+    "companies": [
+      "zenith",
+      "zenit_labs"
+    ],
+    "question": "How many more employees does Zenith have compared to Zenit Labs?",
+    "gold": "Zenith has 9180 more employees.",
+    "gold_value": 9180
+  },
+  {
+    "id": "q027",
+    "template": "rev_per_emp",
+    "companies": [
+      "apex_data"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Apex Data?",
+    "gold": "$147.62K per employee.",
+    "gold_value": 147.62
+  },
+  {
+    "id": "q039",
+    "template": "combined_emp",
+    "companies": [
+      "nova_systems",
+      "spectra_ai"
+    ],
+    "question": "What is the combined employee count of Nova Systems and Spectra AI?",
+    "gold": "2230 employees combined.",
+    "gold_value": 2230
+  },
+  {
+    "id": "q045",
+    "template": "combined_emp",
+    "companies": [
+      "crux_ai",
+      "strata_net"
+    ],
+    "question": "What is the combined employee count of CruxAI and Strata Net?",
+    "gold": "1580 employees combined.",
+    "gold_value": 1580
+  },
+  {
+    "id": "q002",
+    "template": "older_by",
+    "companies": [
+      "zenith",
+      "zenit_labs"
+    ],
+    "question": "Which company is older, Zenith or Zenit Labs, and by how many years?",
+    "gold": "Zenith is older by 17 years.",
+    "gold_value": 17,
+    "gold_name": "Zenith"
+  },
+  {
+    "id": "q032",
+    "template": "rev_per_emp",
+    "companies": [
+      "zenith"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Zenith?",
+    "gold": "$147.96K per employee.",
+    "gold_value": 147.96
+  },
+  {
+    "id": "q022",
+    "template": "rev_per_emp",
+    "companies": [
+      "nova_systems"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Nova Systems?",
+    "gold": "$116.67K per employee.",
+    "gold_value": 116.67
+  },
+  {
+    "id": "q008",
+    "template": "older_by",
+    "companies": [
+      "stratum",
+      "strata_net"
+    ],
+    "question": "Which company is older, Stratum or Strata Net, and by how many years?",
+    "gold": "Stratum is older by 13 years.",
+    "gold_value": 13,
+    "gold_name": "Stratum"
+  },
+  {
+    "id": "q036",
+    "template": "combined_emp",
+    "companies": [
+      "nova_systems",
+      "apex_data"
+    ],
+    "question": "What is the combined employee count of Nova Systems and Apex Data?",
+    "gold": "3900 employees combined.",
+    "gold_value": 3900
+  },
+  {
+    "id": "q038",
+    "template": "combined_emp",
+    "companies": [
+      "quanta",
+      "nexion"
+    ],
+    "question": "What is the combined employee count of Quanta and Nexion?",
+    "gold": "17900 employees combined.",
+    "gold_value": 17900
+  },
+  {
+    "id": "q021",
+    "template": "rev_per_emp",
+    "companies": [
+      "luminos_tech"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Luminos Tech?",
+    "gold": "$136.84K per employee.",
+    "gold_value": 136.84
+  },
+  {
+    "id": "q009",
+    "template": "older_by",
+    "companies": [
+      "inferno",
+      "infernix"
+    ],
+    "question": "Which company is older, Inferno or Infernix, and by how many years?",
+    "gold": "Inferno is older by 9 years.",
+    "gold_value": 9,
+    "gold_name": "Inferno"
+  },
+  {
+    "id": "q059",
+    "template": "emp_diff",
+    "companies": [
+      "neuralaxis",
+      "neuralax"
+    ],
+    "question": "How many more employees does NeuralAxis have compared to NeuralAx?",
+    "gold": "NeuralAxis has 10100 more employees.",
+    "gold_value": 10100
+  },
+  {
+    "id": "q047",
+    "template": "combined_emp",
+    "companies": [
+      "crux_ai",
+      "prismworks"
+    ],
+    "question": "What is the combined employee count of CruxAI and PrismWorks?",
+    "gold": "7380 employees combined.",
+    "gold_value": 7380
+  },
+  {
+    "id": "q034",
+    "template": "rev_per_emp",
+    "companies": [
+      "stratum"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Stratum?",
+    "gold": "$160.0K per employee.",
+    "gold_value": 160.0
+  },
+  {
+    "id": "q016",
+    "template": "older_by",
+    "companies": [
+      "quanta",
+      "quantax"
+    ],
+    "question": "Which company is older, Quanta or QuantaX, and by how many years?",
+    "gold": "Quanta is older by 16 years.",
+    "gold_value": 16,
+    "gold_name": "Quanta"
+  },
+  {
+    "id": "q040",
+    "template": "combined_emp",
+    "companies": [
+      "vectora",
+      "spectral"
+    ],
+    "question": "What is the combined employee count of Vectora and Spectral?",
+    "gold": "18400 employees combined.",
+    "gold_value": 18400
+  },
+  {
+    "id": "q054",
+    "template": "emp_diff",
+    "companies": [
+      "prismworks",
+      "prism_ai"
+    ],
+    "question": "How many more employees does PrismWorks have compared to Prism AI?",
+    "gold": "PrismWorks has 6820 more employees.",
+    "gold_value": 6820
+  },
+  {
+    "id": "q044",
+    "template": "combined_emp",
+    "companies": [
+      "orbita",
+      "solara_soft"
+    ],
+    "question": "What is the combined employee count of Orbita and Solara Soft?",
+    "gold": "6970 employees combined.",
+    "gold_value": 6970
+  },
+  {
+    "id": "q014",
+    "template": "older_by",
+    "companies": [
+      "hypercor",
+      "hypercore"
+    ],
+    "question": "Which company is older, HyperCor or HyperCore, and by how many years?",
+    "gold": "HyperCor is older by 12 years.",
+    "gold_value": 12,
+    "gold_name": "HyperCor"
+  },
+  {
+    "id": "q023",
+    "template": "rev_per_emp",
+    "companies": [
+      "hypercore"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of HyperCore?",
+    "gold": "$130.77K per employee.",
+    "gold_value": 130.77
+  },
+  {
+    "id": "q042",
+    "template": "combined_emp",
+    "companies": [
+      "hypercor",
+      "terra_tech"
+    ],
+    "question": "What is the combined employee count of HyperCor and Terra Tech?",
+    "gold": "18000 employees combined.",
+    "gold_value": 18000
+  },
+  {
+    "id": "q011",
+    "template": "older_by",
+    "companies": [
+      "neuralaxis",
+      "neuralax"
+    ],
+    "question": "Which company is older, NeuralAxis or NeuralAx, and by how many years?",
+    "gold": "NeuralAxis is older by 15 years.",
+    "gold_value": 15,
+    "gold_name": "NeuralAxis"
+  },
+  {
+    "id": "q058",
+    "template": "emp_diff",
+    "companies": [
+      "luminos",
+      "luminos_tech"
+    ],
+    "question": "How many more employees does Luminos have compared to Luminos Tech?",
+    "gold": "Luminos has 7450 more employees.",
+    "gold_value": 7450
+  },
+  {
+    "id": "q041",
+    "template": "combined_emp",
+    "companies": [
+      "solara",
+      "kaleidix"
+    ],
+    "question": "What is the combined employee count of Solara and Kaleidix?",
+    "gold": "11100 employees combined.",
+    "gold_value": 11100
+  },
+  {
+    "id": "q030",
+    "template": "rev_per_emp",
+    "companies": [
+      "solara_soft"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Solara Soft?",
+    "gold": "$132.18K per employee.",
+    "gold_value": 132.18
+  },
+  {
+    "id": "q018",
+    "template": "older_by",
+    "companies": [
+      "terracor",
+      "terra_tech"
+    ],
+    "question": "Which company is older, TerraCor or Terra Tech, and by how many years?",
+    "gold": "TerraCor is older by 15 years.",
+    "gold_value": 15,
+    "gold_name": "TerraCor"
+  },
+  {
+    "id": "q025",
+    "template": "rev_per_emp",
+    "companies": [
+      "nexion_labs"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Nexion Labs?",
+    "gold": "$144.74K per employee.",
+    "gold_value": 144.74
+  },
+  {
+    "id": "q007",
+    "template": "older_by",
+    "companies": [
+      "vectora",
+      "vector_core"
+    ],
+    "question": "Which company is older, Vectora or Vector Core, and by how many years?",
+    "gold": "Vectora is older by 15 years.",
+    "gold_value": 15,
+    "gold_name": "Vectora"
+  },
+  {
+    "id": "q051",
+    "template": "emp_diff",
+    "companies": [
+      "inferno",
+      "infernix"
+    ],
+    "question": "How many more employees does Inferno have compared to Infernix?",
+    "gold": "Inferno has 4190 more employees.",
+    "gold_value": 4190
+  },
+  {
+    "id": "q006",
+    "template": "older_by",
+    "companies": [
+      "orbita",
+      "orbit_cloud"
+    ],
+    "question": "Which company is older, Orbita or Orbit Cloud, and by how many years?",
+    "gold": "Orbita is older by 7 years.",
+    "gold_value": 7,
+    "gold_name": "Orbita"
+  },
+  {
+    "id": "q019",
+    "template": "older_by",
+    "companies": [
+      "nexion",
+      "nexion_labs"
+    ],
+    "question": "Which company is older, Nexion or Nexion Labs, and by how many years?",
+    "gold": "Nexion is older by 12 years.",
+    "gold_value": 12,
+    "gold_name": "Nexion"
+  },
+  {
+    "id": "q050",
+    "template": "combined_emp",
+    "companies": [
+      "neuralaxis",
+      "nexion"
+    ],
+    "question": "What is the combined employee count of NeuralAxis and Nexion?",
+    "gold": "19900 employees combined.",
+    "gold_value": 19900
+  },
+  {
+    "id": "q015",
+    "template": "older_by",
+    "companies": [
+      "mosaiq",
+      "mosaic_data"
+    ],
+    "question": "Which company is older, MosaIQ or Mosaic Data, and by how many years?",
+    "gold": "MosaIQ is older by 8 years.",
+    "gold_value": 8,
+    "gold_name": "MosaIQ"
+  },
+  {
+    "id": "q043",
+    "template": "combined_emp",
+    "companies": [
+      "strata_net",
+      "novatech"
+    ],
+    "question": "What is the combined employee count of Strata Net and NovaTech?",
+    "gold": "5600 employees combined.",
+    "gold_value": 5600
+  },
+  {
+    "id": "q003",
+    "template": "older_by",
+    "companies": [
+      "apexion",
+      "apex_data"
+    ],
+    "question": "Which company is older, Apexion or Apex Data, and by how many years?",
+    "gold": "Apexion is older by 4 years.",
+    "gold_value": 4,
+    "gold_name": "Apexion"
+  },
+  {
+    "id": "q005",
+    "template": "older_by",
+    "companies": [
+      "luminos",
+      "luminos_tech"
+    ],
+    "question": "Which company is older, Luminos or Luminos Tech, and by how many years?",
+    "gold": "Luminos is older by 15 years.",
+    "gold_value": 15,
+    "gold_name": "Luminos"
+  },
+  {
+    "id": "q046",
+    "template": "combined_emp",
+    "companies": [
+      "luminos_tech",
+      "vector_core"
+    ],
+    "question": "What is the combined employee count of Luminos Tech and Vector Core?",
+    "gold": "4150 employees combined.",
+    "gold_value": 4150
+  },
+  {
+    "id": "q013",
+    "template": "older_by",
+    "companies": [
+      "solara",
+      "solara_soft"
+    ],
+    "question": "Which company is older, Solara or Solara Soft, and by how many years?",
+    "gold": "Solara is older by 9 years.",
+    "gold_value": 9,
+    "gold_name": "Solara"
+  },
+  {
+    "id": "q037",
+    "template": "combined_emp",
+    "companies": [
+      "vector_core",
+      "kaleidix"
+    ],
+    "question": "What is the combined employee count of Vector Core and Kaleidix?",
+    "gold": "9000 employees combined.",
+    "gold_value": 9000
+  },
+  {
+    "id": "q024",
+    "template": "rev_per_emp",
+    "companies": [
+      "orbita"
+    ],
+    "question": "What is the revenue per employee (in thousands of dollars) of Orbita?",
+    "gold": "$137.7K per employee.",
+    "gold_value": 137.7
+  },
+  {
+    "id": "q056",
+    "template": "emp_diff",
+    "companies": [
+      "nexion",
+      "nexion_labs"
+    ],
+    "question": "How many more employees does Nexion have compared to Nexion Labs?",
+    "gold": "Nexion has 6800 more employees.",
+    "gold_value": 6800
+  },
+  {
+    "id": "q057",
+    "template": "emp_diff",
+    "companies": [
+      "kaleidix",
+      "kalex_io"
+    ],
+    "question": "How many more employees does Kaleidix have compared to Kalex IO?",
+    "gold": "Kaleidix has 5510 more employees.",
+    "gold_value": 5510
+  }
+]

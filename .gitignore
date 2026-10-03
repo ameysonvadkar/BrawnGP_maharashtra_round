@@ -1,0 +1,8 @@
+﻿.env
+data/blackbox.db
+data/model.pkl
+data/metrics.json
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
