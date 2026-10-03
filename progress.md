@@ -1,6 +1,6 @@
 ﻿# Progress: Black Box
 
-Last updated: 2026-10-03 23:36 IST
+Last updated: 2026-10-04
 Code freeze target: hour 5:45
 
 ## Status at a glance
@@ -13,7 +13,7 @@ Code freeze target: hour 5:45
 | 4. Features, model, eval | 2:30 to 3:30 | DONE |
 | 5. Replay + diff | 3:30 to 4:15 | DONE |
 | 6. Streamlit UI | 4:15 to 5:45 | DONE |
-| 7. Polish, README, video | 5:45 to 7:00 | not started |
+| 7. Polish, README, video | 5:45 to 7:00 | DONE (code/docs); video + rehearsal need a human |
 
 ## Checklist
 
@@ -61,22 +61,25 @@ Code freeze target: hour 5:45
 - [x] Checkpoint (code freeze): demo flow works on 3 chosen runs (r_9002 F1, r_0298 F3, r_0300 held-out F4; the last is blamed one step late and the root-cause check correctly rejects it)
 
 ### 7. Polish
-- [ ] README with architecture diagram and metrics table
-- [ ] 2-minute backup demo video
-- [ ] Pitch rehearsed twice
+- [x] README with architecture diagram (mermaid), screenshots, metrics table, honest caveats, demo script, references
+- [x] SHAP bar chart for the selected step (done in Stage 6)
+- [ ] 2-minute backup demo video (human: follow the demo script in README)
+- [ ] Pitch rehearsed twice (human)
 
-## Metrics (Evaluated 2026-10-03)
+## Metrics (re-evaluated 2026-10-04 after bug and leakage fixes)
 
 | Split | Method | Top-1 | Top-3 | MRR |
 |---|---|---|---|---|
-| **Seen faults, test questions** (36 runs) | Random | 16.7% | 38.9% | 0.391 |
+| **Seen faults, test questions** (36 runs) | Random | 8.3% | 36.1% | 0.341 |
 | | Last step | 0.0% | 52.8% | 0.326 |
 | | First anomaly | 13.9% | 66.7% | 0.411 |
 | | **LightGBM** | **100.0%** | **100.0%** | **1.000** |
-| **Held-out faults (F4, F5)** (78 runs) | Random | 16.7% | 48.7% | 0.406 |
-| | Last step | 0.0% | 15.4% | 0.200 |
-| | First anomaly | 6.4% | 29.5% | 0.332 |
-| | LightGBM | 0.0% | 32.0% | 0.258 |
+| **Held-out faults (F4, F5)** (70 runs) | Random | 12.9% | 44.3% | 0.379 |
+| | Last step | 0.0% | 17.1% | 0.207 |
+| | First anomaly | 12.9% | 30.0% | 0.360 |
+| | **LightGBM** | **27.1%** | **51.4%** | **0.471** |
+
+Replay verification (LightGBM top-1): root-cause verified 100% seen / 27.1% held-out; any-patch flip 100% / 100%; labels confirmed by replay 100% / 100%.
 
 ## Decisions log
 
@@ -102,12 +105,11 @@ Code freeze target: hour 5:45
 - 2026-10-03 21:54: Stage 2 complete & verified with `scripts/test_stage2.py` (7/7 steps reused on rerun, 0 re-executed).
 - 2026-10-03 22:42: Stage 3 completed: `faults.py` and `generate.py` generated 300 runs in `data/blackbox.db` (240 faulty, 100% failure rate).
 - 2026-10-03 23:30: Stage 4 completed: `features.py`, `model.py`, `evaluate.py` trained LightGBM ranker (`data/model.pkl`) and wrote `data/metrics.json` (LightGBM Top-1: 100.0% vs First Anomaly: 13.9%).
+- 2026-10-04: Stage 5 completed: replay engine, oracle verification, demo runs, bug + leakage fixes, dataset regenerated, pytest suite.
+- 2026-10-04: Stage 6 completed: Streamlit debugger (timeline, evidence, patch & replay, diff, auto-verify, metrics), AppTest suite.
+- 2026-10-04: Stage 7 completed: README, screenshots in docs/, CLAUDE.md commands updated.
 
-## NEXT STEPS (Stage 5 & Stage 6)
+## NEXT STEPS
 
-1. **Stage 5 (Replay & Diff)**:
-   - Create `blackbox/replay.py` (`replay(run_id, overrides)`, `resume_state()`, `diff()`)
-   - Write `scripts/test_stage5.py` to test patch-and-replay on a failed run (e.g. NovaTech/Zenith run) and verify outcome flips `fail -> pass` with prefix cache reuse counter.
-2. **Stage 6 (Streamlit Debugger UI)**:
-   - Create `app/streamlit_app.py` according to design system specs in `design-palette.md` and `IMPLEMENTATION_PLAN.md`.
-   - Build tabs: **Debugger** (timeline, inspector, patch & replay, diff) and **Metrics** (seen vs held-out benchmarks).
+All code phases are done. Remaining human tasks: record the 2-minute backup video and rehearse the pitch (script in README.md).
+Possible improvements: a calculation-consistency feature (re-evaluate the expression against state) to catch F2 directly, and better F5 (bad plan) localisation.

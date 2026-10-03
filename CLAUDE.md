@@ -7,12 +7,14 @@ Read `IMPLEMENTATION_PLAN.md` for specs and `progress.md` for current state befo
 ## Commands
 
 ```bash
-.venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python -m blackbox.generate        # build the labelled dataset into data/blackbox.db
 python -m blackbox.model           # train and save data/model.pkl
-python -m blackbox.evaluate        # write data/metrics.json
+python -m blackbox.evaluate        # write data/metrics.json (incl. replay verification)
+python -m blackbox.demo            # NovaTech vs Zenith demo runs (split "demo")
 streamlit run app/streamlit_app.py
+python -m pytest -q                # tests (core uses a temp DB; app test needs data/)
 ```
 
 ## Architecture in one paragraph
@@ -34,7 +36,7 @@ streamlit run app/streamlit_app.py
 
 - Python 3.11+, type hints on public functions, small modules, no frameworks for the agent loop.
 - Step types are exactly: `plan`, `retrieve`, `extract`, `calculate`, `answer`.
-- Run IDs look like `r_0142`. Replayed runs set `parent_run_id`.
+- Run IDs look like `r_0142`. Replayed runs set `parent_run_id` and use split `replay`; demo runs use split `demo`. Neither is ever used for training or evaluation.
 - Keep functions pure where possible so cached replay stays deterministic.
 - Prefer clear and boring code over clever code. A working smaller version beats a broken bigger one.
 
