@@ -67,8 +67,8 @@ def load_model() -> lgb.LGBMClassifier:
         return pickle.load(f)
 
 
-def predict(run_id: str) -> list[dict[str, Any]]:
-    """Predict blame score and top-3 SHAP explanation reasons for each step in a run.
+def predict(run_id: str, top_k: int = 3) -> list[dict[str, Any]]:
+    """Predict blame score and top-k (default 3) SHAP explanation reasons for each step in a run.
 
     Returns list of dicts:
       {
@@ -107,8 +107,8 @@ def predict(run_id: str) -> list[dict[str, Any]]:
         step_shap = shap_matrix[i]
         step_feats = X_run[i]
 
-        # Top 3 feature contributions driving score higher (or top magnitudes)
-        top_indices = np.argsort(np.abs(step_shap))[::-1][:3]
+        # Top-k feature contributions by SHAP magnitude
+        top_indices = np.argsort(np.abs(step_shap))[::-1][:top_k]
         reasons = []
         for idx in top_indices:
             feat_name = FEATURE_NAMES[idx]

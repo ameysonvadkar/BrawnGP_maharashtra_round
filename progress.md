@@ -12,7 +12,7 @@ Code freeze target: hour 5:45
 | 3. Faults + dataset | 1:30 to 2:30 | DONE |
 | 4. Features, model, eval | 2:30 to 3:30 | DONE |
 | 5. Replay + diff | 3:30 to 4:15 | DONE |
-| 6. Streamlit UI | 4:15 to 5:45 | not started |
+| 6. Streamlit UI | 4:15 to 5:45 | DONE |
 | 7. Polish, README, video | 5:45 to 7:00 | not started |
 
 ## Checklist
@@ -51,12 +51,14 @@ Code freeze target: hour 5:45
 - [x] Checkpoint: demo run blamed at step 3 (0.99), patch flips fail -> pass, 3 prefix steps reused, 1 patched
 
 ### 6. Streamlit UI
-- [ ] Sidebar run list and filters
-- [ ] Timeline strip coloured by suspicion score, step inspector with SHAP evidence
-- [ ] Patch and replay form with cache reuse counters
-- [ ] Side-by-side diff view
-- [ ] Metrics tab
-- [ ] Checkpoint (code freeze): demo flow works on 3 chosen runs
+- [x] Sidebar run list and filters (outcome, fault type, split; replays hidden)
+- [x] Timeline coloured by suspicion score (status colour + icon + label), step inspector with SHAP evidence sentences, data-flow path, checkpoint state
+- [x] Patch and replay form (document picker for retrieve, JSON editor + oracle button otherwise) with cache reuse counters
+- [x] Side-by-side diff view (first divergence, per-step source: cache / patched / re-executed)
+- [x] Metrics tab (Top-1/Top-3 charts + tables, replay-verified tiles, dataset composition)
+- [x] Nice-to-have: SHAP bar chart per step, auto-verify top-3 blamed steps
+- [x] `tests/test_app.py` (Streamlit AppTest, headless) + screenshots checked in light and dark mode
+- [x] Checkpoint (code freeze): demo flow works on 3 chosen runs (r_9002 F1, r_0298 F3, r_0300 held-out F4; the last is blamed one step late and the root-cause check correctly rejects it)
 
 ### 7. Polish
 - [ ] README with architecture diagram and metrics table
