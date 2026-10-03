@@ -12,12 +12,12 @@ pip install -r requirements-dev.txt
 python -m blackbox.build           # dataset + model + metrics + demo runs (--force to rebuild)
 streamlit run app/streamlit_app.py # also builds data/ on first launch if missing
 python -m pytest -q                # tests (core uses a temp DB; app test needs data/)
-ruff check agent blackbox app scripts tests --select F,E9,B
+ruff check agent blackbox app scripts tests examples --select F,E9,B
 ```
 
 ## Architecture in one paragraph
 
-`agent/` runs a plan, retrieve, extract, calculate, answer loop over a fictional company KB. `blackbox/recorder.py` wraps every step, storing input, output, state snapshot, parents and a cache key in SQLite. `faults.py` injects one fault per run (F1 to F5) to give ground-truth labels. `features.py` and `model.py` rank steps by blame with SHAP reasons. `replay.py` re-runs from step k with a patched output, with earlier steps served from cache. `evaluate.py` reports Top-1, Top-3 and MRR on seen versus held-out fault types.
+`agent/` runs a plan, retrieve, extract, calculate, answer loop over a fictional company KB. `blackbox/recorder.py` wraps every step, storing input, output, state snapshot, parents and a cache key in SQLite. `faults.py` injects one fault per run (F1 to F5) to give ground-truth labels. `features.py` and `model.py` rank steps by blame with SHAP reasons. `replay.py` re-runs from step k with a patched output, with earlier steps served from cache. `evaluate.py` reports Top-1, Top-3 and MRR on seen versus held-out fault types. `sdk.py` provides `@blackbox.step` so any agent can be recorded and replayed (`examples/travel_agent.py`), and `cost.py` estimates what a replay saves.
 
 ## Hard rules
 

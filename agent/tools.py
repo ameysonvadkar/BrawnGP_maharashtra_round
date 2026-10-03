@@ -369,3 +369,7 @@ def plan(input_data: dict) -> dict:
             {"action": "answer", "key": "final"}
         ]
     return {"actions": actions}
+
+
+# Prompt templates by step type (used to estimate LLM token cost)
+PROMPT_TEMPLATES = {"plan": _PLAN_PROMPT, "extract": _EXTRACT_PROMPT, "answer": _ANSWER_PROMPT}

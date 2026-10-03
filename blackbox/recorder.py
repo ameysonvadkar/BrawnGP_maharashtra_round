@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS runs (
     split TEXT,
     n_reused INTEGER,
     n_reexecuted INTEGER,
-    created_at TEXT
+    created_at TEXT,
+    agent TEXT
 );
 
 CREATE TABLE IF NOT EXISTS steps (
@@ -70,6 +71,10 @@ def init_db() -> None:
     """Create tables if they don't exist."""
     with _get_conn() as conn:
         conn.executescript(SCHEMA)
+        # Non-destructive migration for databases created before the `agent` column
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(runs)")}
+        if "agent" not in cols:
+            conn.execute("ALTER TABLE runs ADD COLUMN agent TEXT")
 
 
 # ── cache ────────────────────────────────────────────────────────────────────
@@ -185,20 +190,22 @@ def save_run(
     fault_type: str | None = None,
     fault_step: int | None = None,
     parent_run_id: str | None = None,
+    agent: str | None = None,
 ) -> None:
+    """Insert or replace a run. `agent` names a registered @blackbox.step agent (None = built-in agent)."""
     with _get_conn() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO runs
               (run_id, question_id, question, gold, final_answer, success,
-               fault_type, fault_step, parent_run_id, split, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               fault_type, fault_step, parent_run_id, split, created_at, agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id, question_id, question, gold,
                 final_answer, int(success),
                 fault_type, fault_step, parent_run_id, split,
-                datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                datetime.datetime.now(datetime.timezone.utc).isoformat(), agent,
             ),
         )
 

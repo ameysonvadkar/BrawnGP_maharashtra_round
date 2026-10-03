@@ -13,6 +13,7 @@ from agent.tools import answer, calculate, extract, get_kb, llm_model_id, plan, 
 from blackbox.recorder import cache_stats, delete_run, init_db, record_step, save_run, update_run_counts
 
 TOOL_MODEL = "tool"
+PLAN_IDX = 0
 _NAME = re.compile(r"[A-Za-z_]\w*")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
@@ -89,11 +90,15 @@ def run(
             override=overrides.get(idx), recorded=recorded_steps.get(idx),
         )
 
-    def parents_of(keys: set[str]) -> list[int]:
-        return sorted({key_written_by[k] for k in keys if k in key_written_by})
+    def parents_of(keys: set[str], from_plan: bool = True) -> list[int]:
+        """Steps that wrote the given state keys, plus the plan that chose this action."""
+        found = {key_written_by[k] for k in keys if k in key_written_by}
+        if from_plan:
+            found.add(PLAN_IDX)
+        return sorted(found)
 
     # ── Step 0: plan ────────────────────────────────────────────────────────
-    plan_output = step(0, "plan", {"question": question}, plan, [], llm_model) or {"actions": []}
+    plan_output = step(PLAN_IDX, "plan", {"question": question}, plan, [], llm_model) or {"actions": []}
     actions = plan_output.get("actions", []) if isinstance(plan_output, dict) else []
 
     # ── Steps 1+: execute actions ────────────────────────────────────────────
@@ -104,7 +109,7 @@ def run(
 
         if act == "retrieve":
             key = action.get("key", f"doc_{step_idx}")
-            out = step(step_idx, "retrieve", {"name": action.get("name", "")}, retrieve, [], TOOL_MODEL)
+            out = step(step_idx, "retrieve", {"name": action.get("name", "")}, retrieve, parents_of(set()), TOOL_MODEL)
             if out:
                 state[key] = out
                 key_written_by[key] = step_idx
@@ -132,7 +137,7 @@ def run(
 
         elif act == "answer":
             all_state = dict(state)
-            parents = parents_of(set(all_state))
+            parents = parents_of(set(all_state), from_plan=False)  # reads facts, not plan arguments
             out = step(step_idx, "answer", {"question": question, "state": all_state}, answer, parents, llm_model)
             if out:
                 final_answer = out.get("answer", "") if isinstance(out, dict) else str(out)

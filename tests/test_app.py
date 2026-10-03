@@ -55,3 +55,16 @@ def test_auto_verify_and_other_runs_render():
     other = next(o for o in sb.options if "dropped_context" in o)
     sb.select(other.split(" · ")[0]).run()
     assert not at.exception, at.exception
+
+
+def test_second_agent_run_renders_blames_and_replays():
+    at = _app()
+    sb = at.sidebar.selectbox[0]
+    sb.select("t_9102").run()
+    assert not at.exception, at.exception
+    assert at.radio(key="step_t_9102").value == 1  # blamed: the retrieval
+    at.button[[b.label for b in at.button].index("Load clean-run output (oracle)")].click().run()
+    at.button[[b.label for b in at.button].index("▶ Patch & replay")].click().run()
+    assert not at.exception, at.exception
+    assert any("fail → pass" in s.value for s in at.success)
+    assert any(m.label == "LLM tokens not re-spent" for m in at.metric)

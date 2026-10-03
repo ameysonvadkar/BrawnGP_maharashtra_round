@@ -4,8 +4,9 @@
     python -m blackbox.build --force    # rebuild from scratch
 
 Generates the labelled dataset, trains the ranker, evaluates it and records the
-demo runs. Runs offline in a few seconds without an API key, so the Streamlit
-app calls it on first launch (data/ is gitignored and absent on a fresh deploy).
+demo runs, including the second agent (instrumented with @blackbox.step). Runs
+offline in a few seconds without an API key, so the Streamlit app calls it on
+first launch (data/ is gitignored and absent on a fresh deploy).
 """
 from __future__ import annotations
 
@@ -35,6 +36,8 @@ def build_all(force: bool = False) -> None:
     train_model()
     evaluate_baselines_and_model()
     build_demo()
+    from examples.travel_agent import record_examples  # second agent, recorded via the SDK
+    record_examples()
     print("Build complete.")
 
 

@@ -136,7 +136,7 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
         calc_args_traceable = 0.0
 
         if stype == "retrieve" and isinstance(out, dict):
-            req_name = inp.get("name", "")
+            req_name = inp.get("name", inp.get("query", ""))
             title = out.get("title", "")
             if req_name and title:
                 grounding_match = fuzz.token_sort_ratio(req_name, title) / 100.0
@@ -145,7 +145,7 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
                 top_score_gap = float(top_scores[0] - top_scores[1])
 
         elif stype == "extract" and isinstance(out, dict):
-            comp = inp.get("company", {})
+            comp = inp.get("company", inp.get("source", {}))
             if isinstance(comp, dict) and _value_in_source(out.get("value"), comp):
                 extracted_in_source = 1.0
 

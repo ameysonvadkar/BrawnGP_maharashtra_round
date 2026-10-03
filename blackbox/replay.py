@@ -14,6 +14,7 @@ import uuid
 from typing import Any
 
 from agent.runner import run
+from blackbox import sdk
 from blackbox.recorder import _get_conn, delete_run, get_run, get_steps
 
 # Replays get their own split so they never leak into ranker training or evaluation
@@ -67,18 +68,26 @@ def replay(
         for s in get_steps(run_id)
     }
 
-    res = run(
-        question=parent["question"],
-        question_id=parent["question_id"],
-        run_id=new_run_id,
-        gold=parent["gold"],
-        split=REPLAY_SPLIT,
-        fault_type=None,  # Replays are counterfactual tests, never training labels
-        fault_step=None,
-        overrides=overrides,
-        parent_run_id=run_id,
-        recorded_steps=recorded,
-    )
+    if parent.get("agent"):
+        # Recorded with @blackbox.step: re-run that registered agent, not the built-in one
+        res = sdk.record(
+            parent["agent"], parent["question"], run_id=new_run_id, gold=parent["gold"] or None,
+            question_id=parent["question_id"], split=REPLAY_SPLIT, overrides=overrides,
+            recorded_steps=recorded, parent_run_id=run_id,
+        )
+    else:
+        res = run(
+            question=parent["question"],
+            question_id=parent["question_id"],
+            run_id=new_run_id,
+            gold=parent["gold"],
+            split=REPLAY_SPLIT,
+            fault_type=None,  # Replays are counterfactual tests, never training labels
+            fault_step=None,
+            overrides=overrides,
+            parent_run_id=run_id,
+            recorded_steps=recorded,
+        )
 
     first_patch = min(overrides) if overrides else None
     n_reused = n_patched = n_reexecuted = n_prefix_reused = n_llm_reused = 0
@@ -97,6 +106,7 @@ def replay(
     return {
         "run_id": new_run_id,
         "parent_run_id": run_id,
+        "patched_steps": sorted(overrides),
         "final_answer": res["final_answer"],
         "success": res["success"],
         "n_steps": res["n_steps"],

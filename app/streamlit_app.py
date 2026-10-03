@@ -26,6 +26,8 @@ import streamlit as st  # noqa: E402
 from agent.tools import get_kb, retrieve_by_id  # noqa: E402
 from blackbox import recorder  # noqa: E402
 from blackbox.build import build_all, is_built  # noqa: E402
+from blackbox.cost import prices, replay_savings  # noqa: E402
+from examples.travel_agent import ensure_examples  # noqa: E402  (also registers the travel agent)
 from blackbox.demo import DEMO_FAULT_RUN, ensure_demo  # noqa: E402
 from blackbox.features import FEATURE_NAMES  # noqa: E402
 from blackbox.model import MODEL_PATH, predict  # noqa: E402
@@ -169,7 +171,8 @@ def predictions(run_id: str) -> dict[int, dict]:
 
 def run_label(r: dict) -> str:
     outcome = "pass" if r["success"] else "FAIL"
-    return f"{r['run_id']} · {r['fault_type'] or 'clean'} · {r['split']} · {outcome}"
+    agent_tag = f"[{r['agent']}] " if r.get("agent") else ""
+    return f"{agent_tag}{r['run_id']} · {r['fault_type'] or 'clean'} · {r['split']} · {outcome}"
 
 
 # ── page ────────────────────────────────────────────────────────────────────
@@ -190,6 +193,7 @@ if not is_built():
     cached_predict.clear()
 
 ensure_demo()
+ensure_examples()
 
 st.title("Black Box · a flight recorder for AI agents")
 st.caption("Record agent runs → blame the step that broke it → patch that step and replay only what comes after.")
@@ -234,6 +238,9 @@ if not steps:
 
 with tab_debug:
     st.subheader(run_info["question"])
+    if run_info.get("agent"):
+        st.caption(f"Recorded from the `{run_info['agent']}` agent via `@blackbox.step`. "
+                   "The ranker was trained only on the company-facts agent.")
     c1, c2, c3 = st.columns([2, 2, 1])
     c1.markdown(f"**Final answer**  \n{run_info['final_answer']}")
     c2.markdown(f"**Gold answer**  \n{run_info['gold']}")
@@ -348,7 +355,7 @@ with tab_debug:
     current_out = loads(step["output_json"])
 
     patched: Any = None
-    if step["type"] == "retrieve" and isinstance(current_out, dict):
+    if step["type"] == "retrieve" and isinstance(current_out, dict) and not run_info.get("agent"):
         kb = get_kb()
         names = [c["name"] for c in kb]
         default_id = (oracle or current_out).get("doc_id")
@@ -384,6 +391,20 @@ with tab_debug:
         m2.metric("Patched", res["n_patched"])
         m3.metric("Re-executed", res["n_reexecuted"])
         m4.metric("LLM calls avoided", res["n_llm_reused"])
+        savings = replay_savings(res["run_id"], res.get("patched_steps", [res["step"]]))
+        if savings["tokens_full"]:
+            p = prices()
+            c1, c2 = st.columns(2)
+            c1.metric("LLM tokens not re-spent",
+                      f"{savings['tokens_saved']:,} of {savings['tokens_full']:,}",
+                      f"{savings['pct_saved']:.0%} of a full re-run")
+            c2.metric("Est. saved per 1,000 fixes",
+                      f"₹{savings['inr_saved_per_1000']:,.2f}",
+                      f"${savings['usd_saved'] * 1000:,.3f}")
+            # "\$" stops Streamlit from rendering $...$ as LaTeX
+            st.caption(f"Estimate: tokens ≈ characters ÷ 4; \\${p['in_per_m']} / \\${p['out_per_m']} per 1M "
+                       f"input/output tokens (Gemini 2.0 Flash list price), ₹{p['usd_inr']:g} per \\$. "
+                       "Change them with LLM_PRICE_IN_PER_M, LLM_PRICE_OUT_PER_M and USD_INR in .env.")
         if res["outcome_changed"] and res["success"]:
             st.success(f"✓ fail → pass. Patching step {res['step']} alone fixes the run: "
                        f"**{res['final_answer']}**")

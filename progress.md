@@ -73,17 +73,20 @@ Code freeze target: hour 5:45
 | **Seen faults, test questions** (36 runs) | Random | 8.3% | 36.1% | 0.341 |
 | | Last step | 0.0% | 52.8% | 0.326 |
 | | First anomaly | 13.9% | 66.7% | 0.411 |
-| | **LightGBM** | **100.0%** | **100.0%** | **1.000** |
+| | **LightGBM** | **97.2%** | **100.0%** | **0.986** |
 | **Held-out faults (F4, F5)** (70 runs) | Random | 12.9% | 44.3% | 0.379 |
 | | Last step | 0.0% | 17.1% | 0.207 |
 | | First anomaly | 12.9% | 30.0% | 0.360 |
 | | **LightGBM** | **57.1%** | **57.1%** | **0.657** |
 
 Held-out by type: F4 dropped_context 100% (40 runs), F5 bad_plan 0% (30 runs).
-Replay verification (LightGBM top-1): root-cause verified 100% seen / 57.1% held-out; any-patch flip 100% / 100%; labels confirmed by replay 100% / 100%.
+Replay verification (LightGBM top-1): root-cause verified 97.2% seen / 57.1% held-out; any-patch flip 97.2% / 100%; labels confirmed by replay 100% / 100%.
+Second agent (travel, via @blackbox.step, never trained on): 3/3 faulty runs blamed correctly, all root-cause verified.
 
 ## Decisions log
 
+- 2026-10-04: Added `@blackbox.step` SDK (`blackbox/sdk.py`), replay of registered agents, a second agent (`examples/travel_agent.py`) and a replay cost estimate (`blackbox/cost.py`, shown in the UI). The ranker transfers to the travel agent (3/3).
+- 2026-10-04: Data-flow fix: the plan step is now a parent of every action it drives (retrieve/extract/calculate). Before, plans always had 0 consumers in training, so a correctly linked plan in another agent looked anomalous. Seen Top-1 100% -> 97.2% (35/36), held-out unchanged at 57.1%.
 - 2026-10-04: Replay is now deterministic: a step whose input is unchanged returns the original run's recorded output (injected fault included) instead of a fresh cached call. Before, any replay silently dropped the injected fault, so a no-op patch could "fix" a run and auto-verify could mark an upstream step as a verified root cause. Headline metrics unchanged.
 - 2026-10-04: Second bug-fix pass: success check now requires the gold company (not its near-duplicate) and any matching number; `extracted_in_source` uses exact value matching (substring let "0" match "2009", hiding F4); `calc_args_traceable` now works; cache key includes the real backend (`rule-fallback` vs Gemini); re-recording a run ID drops stale steps; SQLite connections are closed. Held-out Top-1 27% -> 57% (F4 100%, F5 0%). No plan-specific feature added, to avoid tuning on the held-out set.
 - 2026-10-04: Deployment: `python -m blackbox.build` and auto-build on first app launch; pinned requirements (unused sentence-transformers dropped; google-genai moved to requirements-llm.txt); secrets-focused .gitignore; local .env from template (placeholder only).
