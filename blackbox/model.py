@@ -83,6 +83,7 @@ def predict(run_id: str, top_k: int = 3) -> list[dict[str, Any]]:
     if len(X_run) == 0:
         return []
 
+    feature_indices = {name: i for i, name in enumerate(FEATURE_NAMES)}
     # Predict positive class probabilities (blame scores)
     probs = model.predict_proba(X_run)[:, 1]
 
@@ -105,6 +106,27 @@ def predict(run_id: str, top_k: int = 3) -> list[dict[str, Any]]:
         score = float(probs[i])
         step_shap = shap_matrix[i]
         step_feats = X_run[i]
+        direct_evidence = []
+
+        if (meta["type"] == "calculate"
+                and step_feats[feature_indices["calc_result_recheckable"]] == 1.0
+                and step_feats[feature_indices["calc_result_consistent"]] == 0.0):
+            direct_evidence.append(
+                "Re-evaluating this expression against its recorded inputs does not match the recorded result."
+            )
+        if (meta["type"] == "plan"
+                and step_feats[feature_indices["plan_question_consistent"]] == 0.0):
+            direct_evidence.append(
+                "The planned calculation does not use the operation required by the question."
+            )
+        if (meta["type"] == "plan"
+                and step_feats[feature_indices["plan_action_coverage"]] < 1.0):
+            direct_evidence.append(
+                "One or more planned actions are missing from the executed trace."
+            )
+        if direct_evidence:
+            # These are verified contradictions in the trace, not learned probabilities.
+            score = max(score, 0.99)
 
         # Top-k feature contributions by SHAP magnitude
         top_indices = np.argsort(np.abs(step_shap))[::-1][:top_k]
@@ -122,6 +144,7 @@ def predict(run_id: str, top_k: int = 3) -> list[dict[str, Any]]:
             "type": meta["type"],
             "score": round(score, 4),
             "reasons": reasons,
+            "direct_evidence": direct_evidence,
         })
 
     return results

@@ -1,5 +1,7 @@
 # Runtime dependencies (tested with Python 3.11). Pinned for reproducible deploys.
 streamlit==1.65.0
+fastapi==0.115.12
+uvicorn==0.34.0
 plotly==7.1.0
 lightgbm==4.7.0
 shap==0.51.0

@@ -11,10 +11,13 @@ first launch (data/ is gitignored and absent on a fresh deploy).
 from __future__ import annotations
 
 import argparse
+import json
+import pickle
 
 from blackbox import recorder
 from blackbox.demo import build_demo
 from blackbox.evaluate import METRICS_PATH, evaluate_baselines_and_model
+from blackbox.features import FEATURE_NAMES
 from blackbox.generate import generate_dataset
 from blackbox.model import MODEL_PATH, train_model
 
@@ -22,7 +25,17 @@ ARTIFACTS = (recorder.DB_PATH, MODEL_PATH, METRICS_PATH)
 
 
 def is_built() -> bool:
-    return all(p.exists() for p in ARTIFACTS)
+    if not all(path.exists() for path in ARTIFACTS):
+        return False
+    with open(ARTIFACTS[1], "rb") as model_file:
+        model = pickle.load(model_file)
+    metrics = json.loads(ARTIFACTS[2].read_text(encoding="utf-8"))
+    heldout_replay = metrics.get("heldout_faults", {}).get("replay_verified", {})
+    return (
+        getattr(model, "n_features_in_", None) == len(FEATURE_NAMES)
+        and "per_fault" in heldout_replay
+        and "root_cause_ci95" in heldout_replay
+    )
 
 
 def build_all(force: bool = False) -> None:

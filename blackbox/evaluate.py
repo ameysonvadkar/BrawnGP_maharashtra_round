@@ -19,6 +19,24 @@ from blackbox.recorder import list_runs, get_steps
 from blackbox.replay import verify_step
 
 METRICS_PATH = Path("data/metrics.json")
+_WILSON_Z = 1.96
+
+
+def _rate_with_interval(hits: int, n: int) -> dict[str, Any]:
+    """Return a rate and two-sided 95% Wilson interval."""
+    if n <= 0:
+        return {"hits": hits, "rate": 0.0, "ci95": [0.0, 0.0]}
+    p = hits / float(n)
+    z2 = _WILSON_Z ** 2
+    denominator = 1.0 + z2 / n
+    center = (p + z2 / (2.0 * n)) / denominator
+    margin = (_WILSON_Z * ((p * (1.0 - p) / n + z2 / (4.0 * n * n)) ** 0.5)
+              / denominator)
+    return {
+        "hits": hits,
+        "rate": round(p, 4),
+        "ci95": [round(max(0.0, center - margin), 4), round(min(1.0, center + margin), 4)],
+    }
 
 
 def evaluate_baselines_and_model() -> dict[str, Any]:
@@ -134,19 +152,40 @@ def _eval_replay(runs: list[dict], lgbm_top1: dict[str, int]) -> dict[str, Any]:
     top1_flips = 0
     top1_root = 0
     label_flips = 0
+    by_fault: dict[str, dict[str, int]] = {}
     for r in runs:
         run_id = r["run_id"]
+        fault_type = r["fault_type"] or "unknown"
+        counts = by_fault.setdefault(
+            fault_type, {"n_runs": 0, "top1_hits": 0, "root_cause_hits": 0}
+        )
+        counts["n_runs"] += 1
         if run_id in lgbm_top1:
+            counts["top1_hits"] += int(lgbm_top1[run_id] == r["fault_step"])
             res = verify_step(run_id, lgbm_top1[run_id], new_run_id=f"rv_{run_id}_top1")
             top1_flips += int(res["verified"])
-            top1_root += int(res["root_cause_verified"])
+            root_verified = int(res["root_cause_verified"])
+            top1_root += root_verified
+            counts["root_cause_hits"] += root_verified
         res = verify_step(run_id, r["fault_step"], new_run_id=f"rv_{run_id}_label")
         label_flips += int(res["verified"])
 
+    per_fault = {
+        fault_type: {
+            "n_runs": counts["n_runs"],
+            "top1": _rate_with_interval(counts["top1_hits"], counts["n_runs"]),
+            "root_cause_verified": _rate_with_interval(
+                counts["root_cause_hits"], counts["n_runs"]
+            ),
+        }
+        for fault_type, counts in sorted(by_fault.items())
+    }
     out = {
         "lightgbm_top1": round(top1_flips / float(n), 4),
         "lightgbm_top1_root_cause": round(top1_root / float(n), 4),
+        "root_cause_ci95": _rate_with_interval(top1_root, n)["ci95"],
         "label_confirmed": round(label_flips / float(n), 4),
+        "per_fault": per_fault,
     }
     print(f"[replay-verified] LightGBM top-1 patch flips fail->pass: {out['lightgbm_top1']*100:5.1f}% "
           f"| root-cause verified: {out['lightgbm_top1_root_cause']*100:5.1f}% "

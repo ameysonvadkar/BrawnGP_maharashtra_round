@@ -4,7 +4,8 @@
 
 Debugger tab: pick a run, see each step's blame score, inspect the evidence,
 patch a step and replay only what comes after it, then diff the two runs.
-Metrics tab: Top-1 / Top-3 / MRR on seen vs held-out faults against baselines.
+Metrics tab: root-cause verification, confidence intervals, per-fault results, and baselines.
+Live demo tab: inject a random fault into a clean run and inspect the ranker result.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from agent.tools import get_kb, retrieve_by_id  # noqa: E402
 from blackbox import recorder  # noqa: E402
 from blackbox.build import build_all, is_built  # noqa: E402
 from blackbox.cost import prices, replay_savings  # noqa: E402
+from blackbox.live import inject_random_fault  # noqa: E402
 from examples.travel_agent import ensure_examples  # noqa: E402  (also registers the travel agent)
 from blackbox.demo import DEMO_FAULT_RUN, ensure_demo  # noqa: E402
 from blackbox.features import FEATURE_NAMES  # noqa: E402
@@ -139,6 +141,14 @@ def explain(reason: dict, step: dict) -> str:
         return "output is empty" if v else "output is non-empty"
     if f == "cosine_sim_question":
         return f"output text similarity to the question is {v:.2f}"
+    if f == "calc_result_consistent":
+        return "recorded result matches a re-evaluation" if v else "recorded result disagrees with a re-evaluation"
+    if f == "calc_result_recheckable":
+        return "expression can be re-evaluated from recorded inputs" if v else "expression could not be re-evaluated"
+    if f == "plan_action_coverage":
+        return f"{v:.0%} of planned actions appear in the executed trace"
+    if f == "plan_question_consistent":
+        return "planned arithmetic matches the question" if v else "planned arithmetic conflicts with the question"
     if f == "output_len":
         return f"output is {int(v)} characters long"
     return f"`{f}` = {v}"
@@ -198,7 +208,7 @@ ensure_examples()
 st.title("Black Box · a flight recorder for AI agents")
 st.caption("Record agent runs → blame the step that broke it → patch that step and replay only what comes after.")
 
-tab_debug, tab_metrics = st.tabs(["Debugger", "Metrics"])
+tab_debug, tab_metrics, tab_live = st.tabs(["Debugger", "Metrics", "Live demo"])
 
 # ── sidebar: run list ───────────────────────────────────────────────────────
 
@@ -293,6 +303,8 @@ with tab_debug:
         st.markdown(f"#### Step {step_idx} · `{step['type']}` — "
                     f"{STATUS[stt]['icon']} {stt} (blame {pred['score']:.2f}"
                     f"{', rank 1' if step_idx == blamed else ''})")
+        for evidence in pred.get("direct_evidence", []):
+            st.warning(f"Consistency evidence: {evidence}")
         st.markdown("**Why (top 3 SHAP reasons)**")
         for r in pred["reasons"][:3]:
             direction = "raises" if r["shap_value"] > 0 else "lowers"
@@ -486,6 +498,31 @@ with tab_metrics:
             "seen_faults_test": "Seen faults (F1–F3) · unseen test questions",
             "heldout_faults": "Held-out faults (F4, F5) · never trained on",
         }
+        st.markdown("#### Root-cause verified · primary result")
+        headline_cols = st.columns(2)
+        for col, key, title in zip(
+            headline_cols, split_titles, ("Seen faults", "Held-out faults"), strict=True
+        ):
+            block = metrics.get(key, {})
+            verified = block.get("replay_verified", {})
+            rate = verified.get("lightgbm_top1_root_cause", 0.0)
+            ci = verified.get("root_cause_ci95", [0.0, 0.0])
+            with col:
+                st.metric(
+                    title,
+                    f"{rate:.1%}",
+                    help=(f"{block.get('n_runs', 0)} failed runs; 95% Wilson interval "
+                          f"{ci[0]:.1%}–{ci[1]:.1%}. Requires exact root-cause input and "
+                          "a fail-to-pass replay."),
+                )
+                st.caption(
+                    f"{block.get('n_runs', 0)} failed runs · 95% Wilson CI "
+                    f"{ci[0]:.1%}–{ci[1]:.1%}"
+                )
+        st.caption(
+            "This is stricter than a patch that merely flips the outcome: the blamed step must "
+            "also have received the same input as the corresponding clean run."
+        )
         cols = st.columns(2)
         for col, (key, title) in zip(cols, split_titles.items(), strict=True):
             block = metrics.get(key, {})
@@ -520,18 +557,40 @@ with tab_metrics:
                 rv = block.get("replay_verified")
                 if rv:
                     r1, r2, r3 = st.columns(3)
-                    r1.metric("Exact-match Top-1", f"{m['lightgbm']['top1']:.0%}")
-                    r2.metric("Root-cause verified", f"{rv.get('lightgbm_top1_root_cause', 0):.0%}")
-                    r3.metric("Any-patch flip", f"{rv.get('lightgbm_top1', 0):.0%}")
-                    st.caption(
-                        f"Replay check on LightGBM's top-1 step. *Any-patch flip*: giving that step its clean "
-                        f"output flips fail → pass, which also happens for steps downstream of the real fault. "
-                        f"*Root-cause verified* additionally requires that the step received the same input as "
-                        f"in the clean run. Labels confirmed by replay: {rv.get('label_confirmed', 0):.0%}."
-                    )
+                    r1.metric("Root-cause verified", f"{rv.get('lightgbm_top1_root_cause', 0):.1%}")
+                    r2.metric("Exact-match Top-1", f"{m['lightgbm']['top1']:.1%}")
+                    with r3:
+                        st.metric("Labels confirmed", f"{rv.get('label_confirmed', 0):.1%}")
+                    per_fault = rv.get("per_fault", {})
+                    if per_fault:
+                        st.markdown("**Per-fault localization and root-cause verification**")
+                        fault_rows = []
+                        for fault, fault_metrics in per_fault.items():
+                            top1 = fault_metrics["top1"]
+                            root = fault_metrics["root_cause_verified"]
+                            fault_rows.append({
+                                "fault": fault,
+                                "runs": fault_metrics["n_runs"],
+                                "Top-1": f"{top1['hits']}/{fault_metrics['n_runs']} ({top1['rate']:.1%})",
+                                "Top-1 95% CI": f"{top1['ci95'][0]:.1%}–{top1['ci95'][1]:.1%}",
+                                "Root-cause verified": (
+                                    f"{root['hits']}/{fault_metrics['n_runs']} ({root['rate']:.1%})"
+                                ),
+                                "Root-cause 95% CI": (
+                                    f"{root['ci95'][0]:.1%}–{root['ci95'][1]:.1%}"
+                                ),
+                            })
+                        st.dataframe(pd.DataFrame(fault_rows), hide_index=True, use_container_width=True)
+                    with st.expander("Other replay checks"):
+                        st.metric("Any-patch flip (not proof of root cause)",
+                                  f"{rv.get('lightgbm_top1', 0):.1%}")
+                        st.caption(
+                            "Any-patch flip means replacing the blamed step with clean output flips fail → pass. "
+                            "A downstream patch can also flip the outcome, so this is not root-cause evidence."
+                        )
 
         st.markdown("#### Dataset")
-        counts = pd.DataFrame(all_runs)
+        counts = pd.DataFrame([r for r in all_runs if r["split"] != "live_demo"])
         if not counts.empty:
             counts["fault"] = counts["fault_type"].fillna("clean")
             pivot = counts.pivot_table(index="fault", columns="split", values="run_id",
@@ -539,3 +598,62 @@ with tab_metrics:
             st.dataframe(pivot, use_container_width=True)
             st.caption("Clean runs pass; each faulty run has exactly one injected fault. "
                        "`benign` = fault injected but the run still passed (excluded from training).")
+
+with tab_live:
+    st.subheader("Inject a live fault")
+    st.write(
+        "Choose a clean run. Black Box will select a random eligible step, inject a compatible "
+        "fault, record a new run, and rank the suspicious steps."
+    )
+    clean_runs = [
+        r for r in all_runs
+        if r["success"] == 1 and r["fault_type"] is None and r["parent_run_id"] is None
+        and r.get("agent") is None and r["split"] != REPLAY_SPLIT
+    ]
+    if not clean_runs:
+        st.info("No successful clean built-in runs are available.")
+    else:
+        clean_ids = [r["run_id"] for r in clean_runs]
+        clean_labels = {r["run_id"]: run_label(r) for r in clean_runs}
+        clean_run_id = st.selectbox(
+            "Clean source run", clean_ids, format_func=clean_labels.get, key="live_clean_source"
+        )
+        if st.button("Inject random fault and rank it", key="live_inject"):
+            result = inject_random_fault(clean_run_id)
+            st.session_state["live_fault_run_id"] = result["run_id"]
+            st.session_state["live_fault_source_id"] = clean_run_id
+
+        live_run_id = st.session_state.get("live_fault_run_id")
+        live_source_id = st.session_state.get("live_fault_source_id")
+        if live_run_id:
+            live_info = recorder.get_run(live_run_id)
+            live_steps = recorder.get_steps(live_run_id)
+            live_preds = predictions(live_run_id)
+            ranked = sorted(live_preds.values(), key=lambda p: p["score"], reverse=True)
+            if live_info and ranked:
+                top_step = ranked[0]["step_idx"]
+                fault_step = live_info["fault_step"]
+                st.markdown(
+                    f"Injected **{live_info['fault_type']}** at step **{fault_step}** "
+                    f"from clean run `{live_source_id}`."
+                )
+                if top_step == fault_step:
+                    st.success(f"Ranker caught the injected fault at step {top_step} (Top-1).")
+                else:
+                    st.warning(
+                        f"Ranker ranked step {top_step} first; injected step was {fault_step}."
+                    )
+                if live_info["success"]:
+                    st.info("This random injection was benign for the final answer; inject again to try another.")
+                ranked_rows = []
+                live_step_types = {s["step_idx"]: s["type"] for s in live_steps}
+                for rank, pred in enumerate(ranked, start=1):
+                    ranked_rows.append({
+                        "rank": rank,
+                        "step": pred["step_idx"],
+                        "type": live_step_types.get(pred["step_idx"], pred["type"]),
+                        "blame": f"{pred['score']:.3f}",
+                        "injected fault": "✓" if pred["step_idx"] == fault_step else "",
+                        "evidence": "; ".join(pred.get("direct_evidence", [])),
+                    })
+                st.dataframe(pd.DataFrame(ranked_rows), hide_index=True, use_container_width=True)

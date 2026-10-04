@@ -68,3 +68,17 @@ def test_second_agent_run_renders_blames_and_replays():
     assert not at.exception, at.exception
     assert any("fail → pass" in s.value for s in at.success)
     assert any(m.label == "LLM tokens not re-spent" for m in at.metric)
+
+
+def test_metrics_lead_with_root_cause_and_include_fault_split():
+    at = _app()
+    assert any("Root-cause verified · primary result" in m.value for m in at.markdown)
+    assert any("Per-fault localization and root-cause verification" in m.value for m in at.markdown)
+
+
+def test_live_fault_injection_renders_ranked_steps():
+    at = _app()
+    at.button(key="live_inject").click().run()
+    assert not at.exception, at.exception
+    assert any("Injected" in m.value and "at step" in m.value for m in at.markdown)
+    assert any(df.value is not None for df in at.dataframe)

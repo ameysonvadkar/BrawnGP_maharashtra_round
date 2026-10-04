@@ -44,9 +44,10 @@ flowchart LR
 | `blackbox/recorder.py` | `record_step()`, SQLite schema, cache (`sha1(type + prompt_version + model + canonical_json(input))`) |
 | `blackbox/faults.py` | F1 wrong_retrieval, F2 bad_tool_arg, F3 corrupted_extract (train); F4 dropped_context, F5 bad_plan (held out) |
 | `blackbox/generate.py` | 60 questions × (1 clean + 4 faulty) = 300 labelled runs |
-| `blackbox/features.py`, `model.py` | 18 step features (no fault columns), LightGBM classifier, SHAP |
+| `blackbox/features.py`, `model.py` | Trace, calculation, and plan consistency features; LightGBM classifier, SHAP |
 | `blackbox/replay.py` | `replay()`, `oracle_output()`, `verify_step()`, `resume_state()`, `diff()` |
 | `blackbox/evaluate.py` | Top-1 / Top-3 / MRR, baselines, replay verification → `data/metrics.json` |
+| `blackbox/live.py` | Random compatible fault injection from a selected clean run |
 | `blackbox/demo.py` | The NovaTech vs Zenith pitch scenario (`r_9001` clean, `r_9002` faulty) |
 | `blackbox/build.py` | One-command build of everything above; also run by the app on first launch |
 | `blackbox/sdk.py` | `@blackbox.step` decorator: record **any** Python agent (see below) |
@@ -71,6 +72,64 @@ streamlit run app/streamlit_app.py
 `data/` is gitignored. If it's missing, the app builds it automatically on first launch.
 `python -m blackbox.build --force` rebuilds from scratch. The individual steps are also available:
 `python -m blackbox.generate`, `blackbox.model`, `blackbox.evaluate` and `blackbox.demo`.
+
+### Node frontend API
+
+FastAPI exposes the debugger and live demo as JSON endpoints. OpenAPI/Swagger UI and ReDoc are
+generated automatically:
+
+```bash
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+# Swagger UI: http://localhost:8000/docs
+# OpenAPI JSON: http://localhost:8000/openapi.json
+# ReDoc: http://localhost:8000/redoc
+```
+
+Set `BLACKBOX_CORS_ORIGINS` to a comma-separated list of frontend origins
+(default: `http://localhost:3000,http://127.0.0.1:3000`). The main routes are:
+
+| Area | Routes |
+|---|---|
+| Live demo | `GET /api/live-demo/clean-runs`, `POST /api/live-demo/injections` |
+| Execute and diagnose | `GET /api/questions`, `POST /api/runs/execute`, `GET /api/runs`, `GET /api/runs/{run_id}`, `GET /api/runs/{run_id}/steps/{step_idx}` |
+| Patch/replay | `POST /api/runs/{run_id}/replays`, `POST /api/runs/{run_id}/verify/{step_idx}`, `POST /api/runs/{run_id}/verify-top`, `GET /api/runs/{run_id}/oracle/{step_idx}` |
+| Trace compare | `GET /api/runs/{run_id}/replays`, `GET /api/runs/{run_id}/diff/{other_run_id}`, `GET /api/runs/{run_id}/clean-reference`, `GET /api/runs/{run_id}/replay-savings/{replay_run_id}` |
+| Other Streamlit data | `GET /api/dashboard`, `GET /api/metrics`, `GET /api/knowledge-base`, `GET /api/features`, `GET /api/health` |
+
+Run requests accept a known `question_id`, or a custom question and gold answer so the result has
+an explicit pass/fail criterion:
+
+```json
+{"question_id": "q001"}
+```
+
+Replay requests accept an `overrides` object keyed by step index, with each value being the
+replacement step output. For example:
+
+```json
+{
+  "overrides": {
+    "3": {
+      "doc_id": "zenith",
+      "title": "Zenith",
+      "company": {
+        "id": "zenith",
+        "name": "Zenith",
+        "founded": 1998,
+        "employees": 9800,
+        "revenue_m": 1450,
+        "hq": "Boston",
+        "ceo": "Patricia Holt"
+      },
+      "top_scores": [0.8, 0.2]
+    }
+  }
+}
+```
+
+Live injection accepts `{"clean_run_id": "..."}`; omit the ID to choose a random successful clean
+run. The response includes the injected run, ranker ordering, per-step evidence, and a `caught_top1`
+boolean. Live-demo traces use their own split and do not enter training or benchmark evaluation.
 
 ### Secrets and the optional LLM backend
 
@@ -102,7 +161,7 @@ Usage statistics are switched off in `.streamlit/config.toml`.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                  # 43 tests
+python -m pytest -q                  # 53 tests
 python -m scripts.test_stage5        # end-to-end demo checkpoint
 python -m scripts.test_stage2        # cache checkpoint
 ```
@@ -174,44 +233,50 @@ small because this agent is tiny; the percentage is what carries over to larger 
 Split by **question** (70/30) and by **fault type** (F4 and F5 never appear in training). Only
 failed runs are scored; benign faults (where the run still passed) are excluded.
 
+**Lead with root-cause verification:** after adding calculation and plan consistency, the rebuilt
+model measured **100.0% on seen faults (36 runs; 95% Wilson CI 90.4–100.0%) / 92.9% on held-out
+faults (70 runs; 95% Wilson CI 84.3–96.9%)**. This requires both a fail → pass patch and the same
+input as the corresponding clean run. The Metrics tab also reports each fault type separately.
+
 | Split | Method | Top-1 | Top-3 | MRR |
 |---|---|---|---|---|
 | **Seen faults (F1–F3), unseen test questions** (36 runs) | Random step | 8.3% | 36.1% | 0.341 |
 | | Last step | 0.0% | 52.8% | 0.326 |
 | | First anomaly | 13.9% | 66.7% | 0.411 |
-| | **LightGBM ranker** | **97.2%** | **100.0%** | **0.986** |
+| | **LightGBM ranker** | **100.0%** | **100.0%** | **1.000** |
 | **Held-out faults (F4, F5), never trained on** (70 runs) | Random step | 12.9% | 44.3% | 0.379 |
 | | Last step | 0.0% | 17.1% | 0.207 |
 | | First anomaly | 12.9% | 30.0% | 0.360 |
-| | **LightGBM ranker** | **57.1%** | **57.1%** | **0.657** |
+| | **LightGBM ranker** | **92.9%** | **100.0%** | **0.964** |
 
-Held-out by fault type: **F4 dropped context 100%** Top-1 (40 runs), **F5 bad plan 0%**
-(30 runs; the plan step is never in the top 3).
+Held-out by fault: **F4 dropped context 87.5% Top-1** (35/40; 95% CI 73.9–94.5%) and
+**F5 bad plan 100.0% Top-1** (30/30; 95% CI 88.7–100.0%). Each seen fault group scored 12/12
+Top-1; each small-group 95% CI is 75.8–100.0%.
 
 **Replay verification** (patch the step with the clean run's output and replay):
 
 | | Seen | Held-out |
 |---|---|---|
-| Exact-match Top-1 | 97.2% | 57.1% |
-| **Root-cause verified**: top-1 step got the same input as in the clean run, and patching it alone flips fail → pass | 97.2% | 57.1% |
-| Any-patch flip: patching the top-1 step flips fail → pass | 97.2% | 100% |
+| **Root-cause verified**: top-1 step got the same input as in the clean run, and patching it alone flips fail → pass | **100.0%** | **92.9%** |
+| Exact-match Top-1 | 100.0% | 92.9% |
+| Any-patch flip: patching the top-1 step flips fail → pass | 100.0% | 98.6% |
 | Labels confirmed: patching the injected step flips fail → pass | 100% | 100% |
 
 ![Metrics](docs/metrics.png)
 
 ### Reading these numbers honestly
 
-- **The seen-fault 97% comes from strong but legitimate grounding signals.** These include the
-  name match between the requested and retrieved entity, and whether an extracted value equals a
-  value in the source document. An ablation shows it: dropping `grounding_match` +
-  `extracted_in_source` drops seen Top-1 from 97% to 61% (held-out from 57% to 21%). F2 (bad calculation) is found by elimination.
+- **The seen-fault 100% comes from strong but legitimate grounding and consistency signals.**
+  These include the name match between the requested and retrieved entity, whether an extracted
+  value equals a value in the source document, and re-evaluation of recorded calculations.
   The seen faults are synthetic and these detectors catch them directly, so **the held-out row
   is the real generalisation number**.
-- **Held-out is a split result, not an average skill.** The model transfers what it learned on F3
-  (an extracted value that isn't in the source document) to F4, which it never saw, and gets it
-  100% right. It cannot see F5 at all, because a wrong plan looks healthy and its damage only
-  shows up in a later calculation. We deliberately did not add a plan-specific feature after
-  seeing the held-out results; that would be tuning on the test set.
+- **Held-out is a split result, not an average skill.** F4 and F5 remain excluded from training.
+  The feature set now checks arithmetic against recorded calculation inputs, checks plan
+  operations against supported question templates, and checks planned actions against execution.
+  These direct contradictions can elevate a step even when the classifier has not seen that fault
+  type; F5 is localized at 30/30 and F4 at 35/40 in this rebuild. These counts have wide
+  confidence intervals because each fault group is small.
 - **"Any-patch flip" is not proof of root cause.** Giving any step downstream of the fault its
   clean output also fixes the run, which is why it is 100% on held-out faults even where the
   blame is wrong. We
@@ -244,7 +309,16 @@ Held-out by fault type: **F4 dropped context 100%** Top-1 (40 runs), **F5 bad pl
    Optionally open **Auto-verify** to show that a downstream step also flips but is *not* the
    root cause.
 5. **Proof it generalises (3:15–4:00).** Metrics tab: baselines vs LightGBM on seen faults, then
-   the held-out fault types the model never saw, then the replay-verified tiles.
+   the held-out fault types the model never saw, then the primary root-cause-verified metrics and
+   their per-fault confidence intervals.
+
+### Live fault injection
+
+Open **Live demo**, choose a successful clean run, and press **Inject random fault and rank it**.
+Black Box picks a random eligible retrieve/extract/calculate step, injects a compatible fault,
+records a separate `live_demo` run, then displays the ranker order and marks the injected step.
+These runs do not enter training or evaluation. A particular injection can be benign for the final
+answer; the tab makes that visible and lets the judge try another random injection.
 
 **Likely questions.** *Synthetic data?* Yes, by design: injection gives exact ground truth (the
 AgenTracer recipe), and held-out fault types test generalisation. *Would it work on my agent?*
@@ -255,10 +329,8 @@ seconds on a laptop.
 ## Limitations
 
 - One agent, one task domain, synthetic faults.
-- F5 (bad plan) is not localised (0% Top-1 on held-out). Its effect only appears in a later
-  calculation, and no current feature checks a plan against the question.
-- F2 (bad calculation) is found by elimination. A feature that re-evaluates the expression against
-  the state would detect it directly.
+- Plan-intent checks currently support the built-in arithmetic question templates, not arbitrary
+  natural-language planning tasks.
 - Without an API key the agent runs on deterministic rule-based fallbacks, not an LLM. With a key,
   the plan, extract and answer steps call Gemini through the same recorder and cache.
 - Replay verification needs an oracle (a clean run of the same question). In the UI, manual

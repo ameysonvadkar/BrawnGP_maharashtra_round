@@ -168,6 +168,74 @@ def test_calc_args_traceable_fires_on_clean_calculation():
     assert X[calc_row][FEATURE_NAMES.index("calc_args_traceable")] == 1.0
 
 
+def test_calculation_consistency_detects_changed_recorded_result():
+    from blackbox.features import FEATURE_NAMES, extract_features_for_run
+
+    q = next(q for q in _questions() if q["template"] == "older_by")
+    run(q["question"], q["id"], "r_0001", q["gold"], "train")
+    clean_calc = next(s for s in recorder.get_steps("r_0001") if s["type"] == "calculate")
+    bad_output = json.loads(clean_calc["output_json"])
+    bad_output["result"] += 10
+    run(q["question"], q["id"], "r_0002", q["gold"], "train",
+        fault_type="bad_tool_arg", fault_step=clean_calc["step_idx"],
+        overrides={clean_calc["step_idx"]: bad_output})
+
+    X, _, meta = extract_features_for_run("r_0002")
+    calc_row = next(i for i, m in enumerate(meta) if m["type"] == "calculate")
+    assert X[calc_row][FEATURE_NAMES.index("calc_result_recheckable")] == 1.0
+    assert X[calc_row][FEATURE_NAMES.index("calc_result_consistent")] == 0.0
+
+
+def test_plan_consistency_detects_wrong_operation_and_missing_action():
+    from blackbox.features import FEATURE_NAMES, extract_features_for_run
+
+    q = next(q for q in _questions() if q["template"] == "older_by")
+    run(q["question"], q["id"], "r_0001", q["gold"], "train")
+    plan_step = recorder.get_steps("r_0001")[0]
+    clean_plan = json.loads(plan_step["output_json"])
+    bad_plan = inject_fault(
+        "bad_plan", "plan", clean_plan, json.loads(plan_step["state_before_json"]), get_kb()
+    )
+    run(q["question"], q["id"], "r_0002", q["gold"], "heldout_fault",
+        fault_type="bad_plan", fault_step=0, overrides={0: bad_plan})
+
+    X, _, meta = extract_features_for_run("r_0002")
+    plan_row = next(i for i, m in enumerate(meta) if m["type"] == "plan")
+    assert X[plan_row][FEATURE_NAMES.index("plan_question_consistent")] == 0.0
+    assert X[plan_row][FEATURE_NAMES.index("plan_action_coverage")] == 1.0
+
+    missing_action_plan = json.loads(json.dumps(clean_plan))
+    next(a for a in missing_action_plan["actions"] if a["action"] == "calculate")["action"] = "unknown"
+    run(q["question"], q["id"], "r_0003", q["gold"], "heldout_fault",
+        overrides={0: missing_action_plan})
+    X, _, meta = extract_features_for_run("r_0003")
+    plan_row = next(i for i, m in enumerate(meta) if m["type"] == "plan")
+    assert X[plan_row][FEATURE_NAMES.index("plan_action_coverage")] < 1.0
+
+
+def test_live_fault_injection_records_a_random_faulty_child_run():
+    from blackbox.live import inject_random_fault
+
+    q = next(q for q in _questions() if q["template"] == "older_by")
+    run(q["question"], q["id"], "r_0001", q["gold"], "train")
+    result = inject_random_fault("r_0001")
+    assert result["source_run_id"] == "r_0001"
+    assert result["fault_type"] in {
+        "wrong_retrieval", "dropped_context", "corrupted_extract", "bad_tool_arg"
+    }
+    assert result["fault_step"] is not None
+    assert recorder.get_run(result["run_id"])["split"] == "live_demo"
+
+
+def test_wilson_interval_reports_sample_size_uncertainty():
+    from blackbox.evaluate import _rate_with_interval
+
+    perfect = _rate_with_interval(40, 40)
+    assert perfect["hits"] == 40 and perfect["rate"] == 1.0
+    assert perfect["ci95"][0] < 1.0 and perfect["ci95"][1] == 1.0
+    assert _rate_with_interval(0, 0)["ci95"] == [0.0, 0.0]
+
+
 def test_rerecording_a_run_id_drops_stale_steps():
     q = next(q for q in _questions() if q["template"] == "older_by")
     run(q["question"], q["id"], "r_0001", q["gold"], "train")

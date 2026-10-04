@@ -5,7 +5,9 @@ Features DO NOT read fault_type, fault_step, or any injected flag.
 """
 from __future__ import annotations
 
+import ast
 import json
+import math
 import re
 from typing import Any
 
@@ -14,7 +16,7 @@ from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from agent.tools import SAFE_BUILTINS
+from agent.tools import SAFE_BUILTINS, calculate
 from blackbox.recorder import get_steps, get_run, list_runs
 
 FEATURE_NAMES = [
@@ -36,11 +38,110 @@ FEATURE_NAMES = [
     "num_downstream_consumers",
     "on_path_to_final",
     "cosine_sim_question",
+    "calc_result_recheckable",
+    "calc_result_consistent",
+    "plan_action_coverage",
+    "plan_question_consistent",
 ]
 
 _tfidf = TfidfVectorizer()
 _NAME = re.compile(r"[A-Za-z_]\w*")
 _BUILTIN_NAMES = set(SAFE_BUILTINS)
+_PLAN_ACTION_TYPES = {
+    "retrieve": "retrieve",
+    "extract": "extract",
+    "calculate": "calculate",
+    "answer": "answer",
+}
+
+
+def _calculation_consistency(inp: dict, out: Any) -> tuple[float, float]:
+    """Re-evaluate a recorded calculation using its recorded expression and inputs."""
+    if not isinstance(out, dict) or "result" not in out or not inp.get("expr"):
+        return 0.0, 0.0
+    try:
+        expected = calculate({"expr": inp["expr"], "state": inp.get("state", {})})["result"]
+    except (ArithmeticError, TypeError, ValueError):
+        return 0.0, 0.0
+    try:
+        matches = math.isclose(float(expected), float(out["result"]), rel_tol=1e-9, abs_tol=1e-6)
+    except (TypeError, ValueError, OverflowError):
+        matches = False
+    return 1.0, float(matches)
+
+
+def _expected_plan_operators(question: str) -> tuple[type[ast.operator], bool] | None:
+    """Infer a simple arithmetic requirement from the supported question templates."""
+    text = question.lower()
+    if "revenue per employee" in text:
+        return ast.Div, False
+    if "combined employee count" in text:
+        return ast.Add, False
+    if "older" in text or "how many more employees" in text:
+        return ast.Sub, True
+    return None
+
+
+def _plan_question_consistent(question: str, actions: Any) -> float:
+    question_lower = question.lower()
+    expected = _expected_plan_operators(question)
+    if expected is None:
+        return 1.0
+    operator_type, needs_abs = expected
+    if not isinstance(actions, list):
+        return 0.0
+    if "revenue per employee" in question_lower:
+        required_retrieves = 1
+        required_fields = {"revenue_m": 1, "employees": 1}
+    elif "combined employee count" in question_lower or "how many more employees" in question_lower:
+        required_retrieves = 2
+        required_fields = {"employees": 2}
+    else:
+        required_retrieves = 2
+        required_fields = {"founded": 2}
+
+    retrieve_actions = [a for a in actions if isinstance(a, dict) and a.get("action") == "retrieve"]
+    extract_actions = [a for a in actions if isinstance(a, dict) and a.get("action") == "extract"]
+    retrieve_names = [str(a.get("name", "")).strip().lower() for a in retrieve_actions]
+    if (len(retrieve_actions) < required_retrieves
+            or len(set(retrieve_names)) < required_retrieves
+            or any(not name or name not in question_lower for name in retrieve_names)
+            or not any(isinstance(a, dict) and a.get("action") == "answer" for a in actions)):
+        return 0.0
+    for field, required_count in required_fields.items():
+        actual_count = sum(a.get("field") == field for a in extract_actions)
+        if actual_count < required_count:
+            return 0.0
+
+    calc_actions = [a for a in actions if isinstance(a, dict) and a.get("action") == "calculate"]
+    if not calc_actions:
+        return 0.0
+    try:
+        expr = calc_actions[0].get("expr", "")
+        tree = ast.parse(expr, mode="eval")
+    except (SyntaxError, TypeError, ValueError):
+        return 0.0
+    has_operator = any(isinstance(node, operator_type) for node in ast.walk(tree))
+    has_abs = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "abs"
+        for node in ast.walk(tree)
+    )
+    return float(has_operator and (has_abs or not needs_abs))
+
+
+def _plan_action_coverage(actions: Any, steps: list[dict]) -> float:
+    """Fraction of planned actions that have a corresponding recorded tool step."""
+    if actions is None:
+        return 1.0
+    if not isinstance(actions, list) or not actions:
+        return 0.0
+    recorded = {s["step_idx"]: s["type"] for s in steps}
+    covered = 0
+    for offset, action in enumerate(actions, start=1):
+        expected_type = _PLAN_ACTION_TYPES.get(action.get("action")) if isinstance(action, dict) else None
+        if expected_type and recorded.get(offset) == expected_type:
+            covered += 1
+    return covered / float(len(actions))
 
 
 def _value_in_source(value: Any, company: dict) -> bool:
@@ -134,6 +235,10 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
         top_score_gap = 0.0
         extracted_in_source = 0.0
         calc_args_traceable = 0.0
+        calc_result_recheckable = 0.0
+        calc_result_consistent = 0.0
+        plan_action_coverage = 0.0
+        plan_question_consistent = 1.0
 
         if stype == "retrieve" and isinstance(out, dict):
             req_name = inp.get("name", inp.get("query", ""))
@@ -154,6 +259,12 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
             names = set(_NAME.findall(inp.get("expr", ""))) - _BUILTIN_NAMES
             if names and names <= set(state_before):
                 calc_args_traceable = 1.0
+            calc_result_recheckable, calc_result_consistent = _calculation_consistency(inp, out)
+
+        elif stype == "plan":
+            actions = out.get("actions") if isinstance(out, dict) else None
+            plan_action_coverage = _plan_action_coverage(actions, steps)
+            plan_question_consistent = _plan_question_consistent(question_text, actions)
 
         # 4. Data flow features
         num_downstream = float(consumers_map.get(idx, 0))
@@ -175,6 +286,8 @@ def extract_features_for_run(run_id: str) -> tuple[np.ndarray, np.ndarray, list[
             has_error, is_empty_output, output_len, valid_json,
             grounding_match, top_score_gap, extracted_in_source, calc_args_traceable,
             num_downstream, on_path, cosine_sim_q,
+            calc_result_recheckable, calc_result_consistent,
+            plan_action_coverage, plan_question_consistent,
         ]
 
         # Label: 1 if this step is the ground-truth fault step

@@ -33,11 +33,11 @@ Code freeze target: hour 5:45
 ### 3. Faults + dataset
 - [x] `faults.py`: F1 wrong_retrieval, F2 bad_tool_arg, F3 corrupted_extract, F4 dropped_context, F5 bad_plan
 - [x] `generate.py`: 300 total runs generated (60 clean + 240 faulty) in `data/blackbox.db`
-- [x] Failure rate verified: 100.0% failure rate on faulty runs (240/240 failed, 0 benign)
+- [x] Dataset rebuilt: 96.7% failure rate (232/240 injected faults; 8 benign)
 - [x] Checkpoint: 300 runs in DB, 70/30 question train/test split, F4/F5 assigned to `heldout_fault`
 
 ### 4. Features, model, eval
-- [x] `features.py`: 18 step-level features (position, health, grounding, data flow, semantics), zero fault leakage
+- [x] `features.py`: step-level position, health, grounding, data-flow, semantics, calculation, and plan-consistency features; zero fault leakage
 - [x] `model.py`: `LGBMClassifier` trained on F1-F3 train split (918 step samples), saved to `data/model.pkl`, SHAP top-3 reasons
 - [x] `evaluate.py`: Top-1, Top-3, MRR metrics evaluated against Random, Last Step, First Anomaly baselines
 - [x] Metrics written to `data/metrics.json`: LightGBM achieved **100.0% Top-1 Accuracy** on seen faults (test questions)!
@@ -66,22 +66,22 @@ Code freeze target: hour 5:45
 - [ ] 2-minute backup demo video (human: follow the demo script in README)
 - [ ] Pitch rehearsed twice (human)
 
-## Metrics (re-evaluated 2026-10-04 after the second bug-fix pass)
+## Metrics (re-evaluated 2026-10-04 after consistency features)
 
 | Split | Method | Top-1 | Top-3 | MRR |
 |---|---|---|---|---|
 | **Seen faults, test questions** (36 runs) | Random | 8.3% | 36.1% | 0.341 |
 | | Last step | 0.0% | 52.8% | 0.326 |
 | | First anomaly | 13.9% | 66.7% | 0.411 |
-| | **LightGBM** | **97.2%** | **100.0%** | **0.986** |
+| | **LightGBM** | **100.0%** | **100.0%** | **1.000** |
 | **Held-out faults (F4, F5)** (70 runs) | Random | 12.9% | 44.3% | 0.379 |
 | | Last step | 0.0% | 17.1% | 0.207 |
 | | First anomaly | 12.9% | 30.0% | 0.360 |
-| | **LightGBM** | **57.1%** | **57.1%** | **0.657** |
+| | **LightGBM** | **92.9%** | **100.0%** | **0.964** |
 
-Held-out by type: F4 dropped_context 100% (40 runs), F5 bad_plan 0% (30 runs).
-Replay verification (LightGBM top-1): root-cause verified 97.2% seen / 57.1% held-out; any-patch flip 97.2% / 100%; labels confirmed by replay 100% / 100%.
-Second agent (travel, via @blackbox.step, never trained on): 3/3 faulty runs blamed correctly, all root-cause verified.
+Held-out by type: F4 dropped_context 87.5% (35/40; 95% CI 73.9–94.5%), F5 bad_plan 100% (30/30; 95% CI 88.7–100%).
+Replay verification (LightGBM top-1): root-cause verified 100.0% seen (95% CI 90.4–100%) / 92.9% held-out (95% CI 84.3–96.9%); any-patch flip 100% / 98.6%; labels confirmed 100% / 100%.
+Second-agent transfer remains 3/3, after keeping plan-action coverage neutral for plans without explicit `actions`.
 
 ## Decisions log
 
@@ -120,5 +120,19 @@ Second agent (travel, via @blackbox.step, never trained on): 3/3 faulty runs bla
 
 ## NEXT STEPS
 
-All code phases are done. Remaining human tasks: record the 2-minute backup video and rehearse the pitch (script in README.md).
-Possible improvements: a calculation-consistency feature (re-evaluate the expression against state) to catch F2 directly, and better F5 (bad plan) localisation.
+All original code phases are done. Remaining human tasks: record the 2-minute backup video and rehearse the pitch (script in README.md).
+
+### Follow-up implementation (2026-10-04)
+- [x] F2 calculation-consistency features: re-evaluate the recorded expression against recorded inputs and compare with the recorded result.
+- [x] F5 plan-consistency features: compare arithmetic with supported question intent and check planned actions against the executed trace; direct contradictions elevate the blamed step with explicit evidence.
+- [x] Metrics now include 95% Wilson intervals and per-fault Top-1/root-cause counts; the Metrics tab leads with root-cause verification and makes the F4/F5 split visible.
+- [x] Added a Live demo tab: choose a clean run, inject a random compatible fault at an eligible step, and view ranker order against the injected step. Live runs use their own split.
+- [x] Build freshness checks detect stale model/metrics artifacts after the feature schema changes and trigger a rebuild.
+- [x] Rebuilt/evaluated artifacts and recorded updated per-fault scores.
+- [x] Core and API tests: 40 passed; previously failing cross-agent Streamlit/SDK tests passed after correction (2 passed).
+- [x] OpenAPI schema/Swagger UI routes verified through FastAPI app; editor diagnostics and `git diff --check` clean.
+- [x] FastAPI frontend API implementation complete: run execution and diagnosis, replay/verification/diff, benchmark and dashboard data, and live fault injection are available as typed JSON endpoints; Swagger, OpenAPI JSON, and ReDoc routes return successfully.
+- [ ] Rerun the expanded API/core test selection after adding the run-execution endpoint; the earlier API/core run passed 40 tests, before that final endpoint test was added.
+
+- 2026-10-04: Added calculation/plan consistency signals, Wilson confidence intervals and per-fault replay metrics, a root-cause-first Metrics tab, and random live fault injection from clean runs. Latest evaluation: 100% seen / 92.9% held-out root-cause verified; F5 30/30, F4 35/40 Top-1.
+- 2026-10-04: Completed `api.main:app` FastAPI service with typed run/step schemas, question listing/run execution, diagnosis, replay, oracle verification, top-k auto-verify, diff, replay savings, dashboard/metrics/KB/feature data, live-demo endpoints, CORS configuration, and generated Swagger/OpenAPI docs. Added FastAPI/Uvicorn runtime dependencies and API contract tests. Swagger, OpenAPI, health, clean-run listing, and a live injection were exercised successfully; the expanded API/core test rerun remains pending.
