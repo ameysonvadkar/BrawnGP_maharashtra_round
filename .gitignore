@@ -31,3 +31,7 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Raw design assets (the video is copied into frontend/public/media)
+/image-journal-joy-main.zip
+/Blue_light_pulses_on_servers_*.mp4

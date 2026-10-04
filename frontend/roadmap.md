@@ -1,0 +1,4 @@
+- [x] Build the seven-section Black Box landing site and hero timeline.
+- [x] Build the interactive debugger, compare, and metrics views.
+- [x] Replace mock JSON with the live FastAPI backend; add the hero video, live status and live fault injection.
+- [ ] Check metadata, responsive preview, project build diagnostics, and routing tests.

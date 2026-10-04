@@ -170,6 +170,40 @@ python -m scripts.test_stage2        # cache checkpoint
 directory. `tests/test_app.py` drives the UI headlessly with Streamlit's `AppTest`; it uses
 `data/` and is skipped until that has been built.
 
+## Web app (frontend)
+
+`frontend/` is a React (TanStack Start + Vite) web app wired to the FastAPI backend
+(`api/main.py`). There is no mock data: every run, blame score, SHAP reason, replay, diff and
+metric comes from the API. The landing page's hero uses a looping background video
+(`frontend/public/media/hero-servers.mp4`).
+
+```bash
+./scripts/run_web.sh                 # API on 127.0.0.1:8000 + web app on http://127.0.0.1:3000
+```
+
+Or start the two halves separately:
+
+```bash
+uvicorn api.main:app --host 127.0.0.1 --port 8000      # backend
+cd frontend && npm install --ignore-scripts && npx vite dev   # frontend (proxies /api to :8000)
+```
+
+What it shows:
+
+- **Landing page:** the demo run's live verdict and blamed step, the real step timeline, the
+  SHAP evidence, measured metrics and a trace diff, plus live API status and latency.
+- **Debugger:**
+  - the recorded runs, with search and filters;
+  - **Inject live fault**, which corrupts a clean run on the spot and shows whether the ranker
+    catches it;
+  - a step inspector with evidence;
+  - patch & replay, with reuse counters and an estimated cost saving;
+  - top-3 auto-verify;
+  - a side-by-side compare;
+  - the full metrics, with per-fault 95% confidence intervals.
+
+Frontend checks: `cd frontend && npx tsc --noEmit && npx eslint src && npx vitest run`.
+
 ## Instrument your own agent
 
 Decorate each step; everything else (trace, cache, blame, patch & replay, diff) comes for free.
